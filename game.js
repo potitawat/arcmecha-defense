@@ -8,6 +8,17 @@
   const CW = canvas.width / B.grid.cols;
   const CH = canvas.height / B.grid.rows;
   const views = ["home", "campaign", "fortress", "research", "nests", "survival"];
+  const spriteAtlas = {
+    image: new Image(),
+    ready: false,
+    cols: 5,
+    rows: 2,
+    towers: { sentry: 0, repeater: 1, cannon: 2, tesla: 3, cryo: 4 },
+    enemies: { shambling: 0, runner: 1, armored: 2, mage: 3, giant: 4 }
+  };
+
+  spriteAtlas.image.onload = () => { spriteAtlas.ready = true; };
+  spriteAtlas.image.src = "./assets/sprites/arcmecha-sprite-atlas-v1.png";
 
   const ui = {
     headerGold: $("header-gold"),
@@ -1293,6 +1304,24 @@
     ctx.globalCompositeOperation = "source-over";
   }
 
+  function drawAtlasCell(row, col, x, y, width, height) {
+    if (!spriteAtlas.ready) return false;
+    const cellWidth = spriteAtlas.image.width / spriteAtlas.cols;
+    const cellHeight = spriteAtlas.image.height / spriteAtlas.rows;
+    ctx.drawImage(
+      spriteAtlas.image,
+      col * cellWidth,
+      row * cellHeight,
+      cellWidth,
+      cellHeight,
+      x - width / 2,
+      y - height / 2,
+      width,
+      height
+    );
+    return true;
+  }
+
   function drawTower(tower) {
     const config = B.towers[tower.id];
     const selected = runtime.selectedPlaced === tower;
@@ -1316,6 +1345,28 @@
     ctx.beginPath();
     ctx.ellipse(0, 13, 25, 9, 0, 0, Math.PI * 2);
     ctx.fill();
+    if (config.category === "mechanical" && spriteAtlas.ready && spriteAtlas.towers[tower.id] !== undefined) {
+      const size = tower.id === "cannon" ? 1.1 : tower.id === "tesla" || tower.id === "cryo" ? 1.05 : 1;
+      glow(config.color, selected ? 19 : 8 + heat * 8);
+      ctx.save();
+      ctx.translate(-Math.cos(angle) * recoil * 4, -Math.sin(angle) * recoil * 4);
+      drawAtlasCell(0, spriteAtlas.towers[tower.id], 0, -6, 96 * size, 96 * size);
+      ctx.restore();
+      if (heat) {
+        glow(config.color, 18);
+        ctx.fillStyle = `rgba(255, 225, 152, ${heat * .62})`;
+        ctx.beginPath();
+        ctx.arc(Math.cos(angle) * 28, -18 + Math.sin(angle) * 20, 5 + heat * 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      resetGlow();
+      ctx.fillStyle = "#f1dfba";
+      ctx.font = "bold 10px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("★".repeat(tower.stars), 0, 32);
+      ctx.restore();
+      return;
+    }
     glow(config.color, selected ? 22 : 10 + heat * 8);
     diamond(0, 7, 42, 24);
     const base = ctx.createLinearGradient(-18, -5, 18, 22);
@@ -1450,6 +1501,30 @@
       ctx.arc(0, -1, 19 * size, 0, Math.PI * 2);
       ctx.stroke();
       resetGlow();
+    }
+    if (spriteAtlas.ready && spriteAtlas.enemies[enemy.type] !== undefined) {
+      const spriteScale = enemy.elite ? 1.34 : enemy.type === "giant" ? 1.2 : enemy.type === "runner" ? .92 : 1;
+      const bob = Math.sin(runtime.elapsed * 5.2 * enemy.speed + enemy.progress) * 1.8;
+      ctx.save();
+      ctx.translate(0, bob);
+      drawAtlasCell(1, spriteAtlas.enemies[enemy.type], 0, -2 * size, 66 * spriteScale, 92 * spriteScale);
+      ctx.restore();
+      if (enemy.slowUntil > runtime.elapsed) {
+        glow("rgba(178, 239, 255, .55)", 13);
+        ctx.strokeStyle = "rgba(178,239,255,.58)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 1, 18 * size, 0, Math.PI * 2);
+        ctx.stroke();
+        resetGlow();
+      }
+      const width = enemy.elite ? 48 : enemy.type === "giant" ? 40 : 31;
+      ctx.fillStyle = "rgba(13,10,9,.88)";
+      ctx.fillRect(-width / 2, -31 * size, width, 5);
+      ctx.fillStyle = enemy.shield > 0 ? "#a66fed" : "#d35a45";
+      ctx.fillRect(-width / 2, -31 * size, width * Math.max(0, enemy.hp / enemy.maxHp), 5);
+      ctx.restore();
+      return;
     }
     ctx.strokeStyle = "#2a221d";
     ctx.lineWidth = 4 * size;
