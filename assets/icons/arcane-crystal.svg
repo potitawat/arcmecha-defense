@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Arcane crystal">
+  <defs>
+    <linearGradient id="c" x1="22" x2="70" y1="12" y2="86">
+      <stop offset="0" stop-color="#f6d5ff"/>
+      <stop offset=".38" stop-color="#a76cff"/>
+      <stop offset=".75" stop-color="#442170"/>
+      <stop offset="1" stop-color="#12091f"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="#b56cff" flood-opacity=".75"/>
+      <feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#000" flood-opacity=".7"/>
+    </filter>
+  </defs>
+  <path d="M48 6l25 26-9 48-16 10-17-10-8-48z" fill="url(#c)" filter="url(#glow)"/>
+  <path d="M48 6v84M23 32h50M31 80l17-48 16 48" fill="none" stroke="#f4d7ff" stroke-width="3" opacity=".48"/>
+  <path d="M39 25l9-10 9 10-9 8z" fill="#fff2ff" opacity=".72"/>
+</svg>

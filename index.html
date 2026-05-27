@@ -8,7 +8,7 @@
     <title>ArcMecha-Defense</title>
     <link rel="icon" href="./icon.svg" type="image/svg+xml">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="preload" href="./assets/fortress-hero-v2.jpg" as="image">
+    <link rel="preload" href="./assets/fortress-hero-v3.jpg" as="image">
     <link rel="stylesheet" href="./styles.css">
     <script src="./balance.js" defer></script>
     <script src="./game.js" defer></script>
@@ -28,17 +28,17 @@
 
     <main id="app">
       <section class="resource-bar" aria-label="Command resources">
-        <div class="currency gold"><span>GOLD</span><strong id="header-gold">--</strong></div>
-        <div class="currency nano"><span>NANO</span><strong id="res-nano">0</strong></div>
-        <div class="currency arcane"><span>ARC</span><strong id="res-arcane">0</strong></div>
-        <div class="currency plasma"><span>CORE</span><strong id="res-plasma">0</strong></div>
-        <div class="currency bio"><span>BIO</span><strong id="res-bio">0</strong></div>
-        <div class="currency research"><span>RESEARCH</span><strong id="res-research">0</strong></div>
+        <div class="currency gold"><img src="./assets/icons/field-gold.svg" alt="Gold"><span>GOLD</span><strong id="header-gold">--</strong></div>
+        <div class="currency nano"><img src="./assets/icons/nano-scrap.svg" alt="Nano Scrap"><span>NANO</span><strong id="res-nano">0</strong></div>
+        <div class="currency arcane"><img src="./assets/icons/arcane-crystal.svg" alt="Arcane Crystal"><span>ARC</span><strong id="res-arcane">0</strong></div>
+        <div class="currency plasma"><img src="./assets/icons/plasma-core.svg" alt="Plasma Core"><span>CORE</span><strong id="res-plasma">0</strong></div>
+        <div class="currency bio"><img src="./assets/icons/zombie-biosample.svg" alt="Zombie Biosample"><span>BIO</span><strong id="res-bio">0</strong></div>
+        <div class="currency research"><img src="./assets/icons/research-data.svg" alt="Research"><span>RESEARCH</span><strong id="res-research">0</strong></div>
       </section>
 
       <section id="view-home" class="view active" aria-label="Command deck">
         <div class="hero-card">
-          <img src="./assets/fortress-hero-v2.jpg" alt="The arcane mechanical fortress overlooking a ruined industrial city">
+          <img src="./assets/fortress-hero-v3.jpg" alt="The arcane mechanical fortress overlooking a ruined industrial city">
           <div class="hero-overlay">
             <p class="eyebrow">THE LAST TECHNOMANTIC CITADEL</p>
             <h1>Hold the line.<br>Hunt the King.</h1>
@@ -120,7 +120,7 @@
         <div class="battle-health"><span>FORTRESS</span><strong id="battle-hp"></strong></div>
       </header>
       <div class="battle-stats">
-        <span>GOLD <b id="battle-gold">0</b></span>
+        <span><img class="mini-icon" src="./assets/icons/field-gold.svg" alt=""> GOLD <b id="battle-gold">0</b></span>
         <span>WAVE <b id="battle-wave">0 / 0</b></span>
         <span id="battle-timer">DEPLOYMENT</span>
       </div>
@@ -139,7 +139,7 @@
     </section>
 
     <section id="boss-screen" class="boss-screen hidden" aria-label="Zombie nest boss battle">
-      <img src="./assets/zombie-king-v2.jpg" alt="" class="boss-backdrop">
+      <img src="./assets/zombie-king-v3.jpg" alt="" class="boss-backdrop">
       <header class="boss-header">
         <button id="leave-boss" class="ghost">WITHDRAW</button>
         <div><p>NEST ASSAULT</p><strong id="boss-stage-title"></strong></div>

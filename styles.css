@@ -552,6 +552,9 @@ code {
 }
 
 .drop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 5px 8px;
   border-radius: 12px;
   background: rgba(197, 143, 75, .1);
@@ -651,6 +654,7 @@ select {
 }
 
 .cost {
+  align-items: center;
   display: flex;
   gap: 7px;
   flex-wrap: wrap;
@@ -662,6 +666,16 @@ select {
 
 .cost b {
   color: var(--brass-hi);
+}
+
+.cost-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid rgba(229, 170, 93, .12);
+  border-radius: 999px;
+  background: rgba(8, 7, 6, .36);
 }
 
 .upgrade-card button,
@@ -834,6 +848,12 @@ select {
   font-size: .62rem;
   font-weight: 800;
   letter-spacing: .13em;
+}
+
+.battle-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .battle-stats b {
@@ -1256,7 +1276,7 @@ body {
 
 .resource-bar {
   top: calc(54px + env(safe-area-inset-top));
-  grid-template-columns: repeat(6, minmax(58px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   padding: 6px;
   background:
     linear-gradient(180deg, rgba(41, 31, 24, .96), rgba(10, 8, 7, .94)),
@@ -1271,6 +1291,15 @@ body {
   background: rgba(9, 8, 7, .42);
 }
 
+.currency img {
+  display: block;
+  width: 23px;
+  height: 23px;
+  margin: 0 auto 3px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .68));
+}
+
 .currency span {
   font-size: .48rem;
   letter-spacing: .11em;
@@ -1279,6 +1308,15 @@ body {
 .currency strong {
   margin-top: 2px;
   font-size: .8rem;
+}
+
+.mini-icon {
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  vertical-align: -4px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .72));
 }
 
 .hero-card {

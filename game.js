@@ -89,7 +89,7 @@
         if (!AudioContext) return;
         this.ctx = new AudioContext();
         this.master = this.ctx.createGain();
-        this.master.gain.value = 0.42;
+        this.master.gain.value = 0.34;
         this.master.connect(this.ctx.destination);
         this.noise = this.createNoise();
       }
@@ -104,13 +104,13 @@
       this.beatTimer = window.setInterval(() => {
         if (!state.settings.music) return;
         const step = this.beat % 16;
-        if (step === 0 || step === 8) this.kick(step === 0 ? 52 : 45);
-        if (step === 4 || step === 12) this.metalHit(step === 4 ? 0.11 : 0.075);
-        if ([2, 6, 10, 14].includes(step)) this.noiseTick(0.018);
-        if (step % 4 === 0) this.drone(step === 0 ? 41 : 55, 0.04, 0.28);
-        if (step === 7 || step === 15) this.pulse(92, 0.025, 0.14, "sawtooth", 0.08);
+        if (step === 0 || step === 8) this.kick(step === 0 ? 43 : 38);
+        if (step === 4 || step === 12) this.metalHit(step === 4 ? 0.072 : 0.052);
+        if ([3, 7, 11, 15].includes(step)) this.noiseTick(0.01);
+        if (step === 0 || step === 8) this.drone(step === 0 ? 32 : 48, 0.028, 0.46);
+        if (step === 15) this.pulse(86, 0.018, 0.2, "sawtooth", -9);
         this.beat += 1;
-      }, 185);
+      }, 245);
     }
 
     createNoise() {
@@ -181,14 +181,27 @@
       this.pulse(freq * 1.5, volume * 0.28, duration * .8, "triangle", 5);
     }
 
-    fx(name) {
+    fx(name, variant = "") {
       if (!state.settings.fx || !this.ctx) return;
       if (name === "build") {
         this.metalHit(0.09);
         this.pulse(118, 0.035, 0.11, "square");
       } else if (name === "shot") {
-        this.pulse(210, 0.026, 0.045, "triangle");
-        this.noiseTick(0.015);
+        if (variant === "cannon") {
+          this.kick(64);
+          this.filteredNoise(0.045, 0.11, 420, "lowpass");
+        } else if (variant === "tesla") {
+          this.pulse(620, 0.025, 0.075, "sawtooth", 11);
+          this.noiseTick(0.018);
+        } else if (variant === "cryo") {
+          this.filteredNoise(0.028, 0.16, 950, "bandpass");
+          this.pulse(260, 0.016, 0.09, "sine", -10);
+        } else if (variant === "repeater") {
+          this.pulse(330, 0.018, 0.03, "square");
+        } else {
+          this.pulse(210, 0.024, 0.045, "triangle");
+          this.noiseTick(0.012);
+        }
       } else if (name === "magic") {
         this.pulse(420, 0.04, 0.22, "sine", 9);
         this.pulse(630, 0.025, 0.18, "triangle", -8);
@@ -270,12 +283,24 @@
     return B.battle.baseHp + state.fortress.armor * B.fortress.armor.hpPerLevel;
   }
 
+  function resourceIcon(key, klass = "mini-icon") {
+    const resource = B.resources[key];
+    return `<img class="${klass}" src="${resource.asset}" alt="${resource.name}">`;
+  }
+
   function resourceLabel(key, value) {
-    return `${B.resources[key].icon} ${round(value)}`;
+    return `${resourceIcon(key)}<span>${round(value)}</span>`;
   }
 
   function costHtml(cost) {
-    return Object.entries(cost || {}).map(([key, amount]) => `<b>${B.resources[key].icon}</b> ${amount}`).join(" / ");
+    return Object.entries(cost || {}).map(([key, amount]) => `<span class="cost-token">${resourceIcon(key)}<b>${amount}</b></span>`).join("");
+  }
+
+  function rewardRollTable(roll) {
+    return {
+      amount: roll.amount || 1,
+      table: roll.table || roll
+    };
   }
 
   function canPay(cost) {
@@ -372,8 +397,9 @@
     const pathCount = B.paths[stage.map].length;
     const enemyTags = stage.types.map(type => B.enemies[type].name).join(" / ");
     const dropLabels = stage.reward.rolls.map((roll, i) => {
-      const description = Object.entries(roll).map(([key, chance]) => `${B.resources[key].icon} ${Math.round(chance * 100)}%`).join(" / ");
-      return `<span class="drop-chip">DROP ${i + 1}: ${description}</span>`;
+      const { amount, table } = rewardRollTable(roll);
+      const description = Object.entries(table).map(([key, chance]) => `${resourceIcon(key)} ${Math.round(chance * 100)}%`).join(" / ");
+      return `<span class="drop-chip">DROP ${i + 1} x${amount}: ${description}</span>`;
     }).join("");
     const nextStep = !cleared
       ? "Primary objective: survive all waves. Build on dark metal plates; brass-lit roads are enemy lanes."
@@ -386,7 +412,7 @@
       <p class="stage-subline">${stage.waves} waves / ${pathCount} route${pathCount > 1 ? "s" : ""} / ${enemyTags}</p>
       <div class="mission-brief">
         <strong>${nextStep}</strong>
-        <span>Victory: RP ${stage.reward.research} plus material rolls. Defeat: partial RP only.</span>
+        <span>Victory: ${resourceIcon("research")} ${stage.reward.research} plus larger material cache rolls. Defeat: partial Research only.</span>
       </div>
       <div class="drop-row">${dropLabels}</div>
       <div class="stage-actions">
@@ -846,7 +872,10 @@
       audio.fx("coin");
     }
     if (tower.id === "lightningStorm") {
-      runtime.enemies.forEach(enemy => damageEnemy(enemy, config.damage * tower.stars * mult.damage, tower.id, true));
+      runtime.enemies.forEach(enemy => {
+        damageEnemy(enemy, config.damage * tower.stars * mult.damage, tower.id, true);
+        impactBurst(enemy.x, enemy.y, config.color, "tesla");
+      });
       runtime.flash = .22;
       audio.fx("magic");
     }
@@ -855,6 +884,7 @@
         enemy.slowUntil = runtime.elapsed + config.slowSeconds * (1 + tower.stars * .04);
         enemy.slowValue = Math.min(.72, config.slow + tower.stars * .018);
         damageEnemy(enemy, config.damage * tower.stars * mult.damage, tower.id, true);
+        impactBurst(enemy.x, enemy.y, config.color, "cryo");
       });
       audio.fx("magic");
     }
@@ -865,6 +895,8 @@
     runtime.towers.forEach(tower => {
       const config = B.towers[tower.id];
       const permanent = permanentMultipliers(tower.id);
+      tower.recoil = Math.max(0, (tower.recoil || 0) - dt * 5.5);
+      tower.heat = Math.max(0, (tower.heat || 0) - dt * 2.2);
       if (config.category === "magic") {
         tower.age += dt;
         const stars = 1 + Math.floor(tower.age / (config.starInterval * permanent.starInterval));
@@ -905,10 +937,29 @@
         target.slowUntil = runtime.elapsed + config.slowSeconds;
         target.slowValue = config.slow;
       }
-      runtime.projectiles.push({ x: tower.x, y: tower.y, tx: target.x, ty: target.y, life: .12, color: config.color });
+      tower.angle = Math.atan2(target.y - tower.y, target.x - tower.x);
+      tower.recoil = tower.id === "cannon" ? 1 : tower.id === "tesla" ? .34 : .62;
+      tower.heat = 1;
+      const projectileLife = tower.id === "cannon" ? .38 : tower.id === "cryo" ? .32 : tower.id === "tesla" ? .11 : .16;
+      runtime.projectiles.push({
+        x: tower.x,
+        y: tower.y,
+        tx: target.x,
+        ty: target.y,
+        life: projectileLife,
+        maxLife: projectileLife,
+        color: config.color,
+        type: tower.id,
+        splash: tower.id === "cannon" ? config.splash * CW : 0
+      });
+      impactBurst(target.x, target.y, config.color, tower.id);
+      if (tower.id === "cannon") {
+        runtime.flash = Math.max(runtime.flash || 0, .12);
+        runtime.shake = Math.max(runtime.shake || 0, .14);
+      }
       const rate = (1 + (tower.stars - 1) * .12) * permanent.speed * (1 + empower.speed);
       tower.cool += config.cooldown / rate;
-      audio.fx("shot");
+      audio.fx("shot", tower.id);
     });
   }
 
@@ -950,17 +1001,49 @@
     runtime.enemies = runtime.enemies.filter(enemy => !enemy.dead);
   }
 
-  function burst(x, y, color) {
-    for (let i = 0; i < 13; i += 1) {
+  function burst(x, y, color, power = 1) {
+    const count = Math.round(13 * power);
+    for (let i = 0; i < count; i += 1) {
       particles.push({
         x,
         y,
-        dx: (Math.random() - .5) * 96,
-        dy: (Math.random() - .65) * 88,
-        life: .36 + Math.random() * .22,
-        size: 1.4 + Math.random() * 2.6,
+        dx: (Math.random() - .5) * 112 * power,
+        dy: (Math.random() - .65) * 96 * power,
+        life: .36 + Math.random() * .28,
+        size: 1.4 + Math.random() * 3.4 * power,
         color
       });
+    }
+  }
+
+  function impactBurst(x, y, color, type) {
+    const power = type === "cannon" ? 2.4 : type === "cryo" ? 1.35 : type === "tesla" ? 1.15 : .82;
+    burst(x, y, color, power);
+    if (type === "cannon") {
+      for (let i = 0; i < 10; i += 1) {
+        particles.push({
+          x,
+          y,
+          dx: (Math.random() - .5) * 54,
+          dy: (Math.random() - .5) * 54,
+          life: .5 + Math.random() * .35,
+          size: 8 + Math.random() * 14,
+          color: "rgba(239, 97, 54, .28)"
+        });
+      }
+    }
+    if (type === "cryo") {
+      for (let i = 0; i < 8; i += 1) {
+        particles.push({
+          x,
+          y,
+          dx: (Math.random() - .5) * 36,
+          dy: (Math.random() - .5) * 36,
+          life: .55 + Math.random() * .28,
+          size: 7 + Math.random() * 10,
+          color: "rgba(174, 239, 255, .25)"
+        });
+      }
     }
   }
 
@@ -968,6 +1051,7 @@
     if (!runtime || runtime.stopped) return;
     runtime.elapsed += dt;
     if (runtime.flash) runtime.flash = Math.max(0, runtime.flash - dt);
+    if (runtime.shake) runtime.shake = Math.max(0, runtime.shake - dt);
     updateTowers(dt);
     if (runtime.between) {
       runtime.countdown -= dt;
@@ -1002,10 +1086,11 @@
   function rollReward(stage) {
     const rewards = {};
     stage.reward.rolls.forEach(roll => {
+      const { amount, table } = rewardRollTable(roll);
       const random = Math.random();
       let cumulative = 0;
-      let result = Object.keys(roll)[0];
-      Object.entries(roll).some(([key, probability]) => {
+      let result = Object.keys(table)[0];
+      Object.entries(table).some(([key, probability]) => {
         cumulative += probability;
         if (random <= cumulative) {
           result = key;
@@ -1013,7 +1098,7 @@
         }
         return false;
       });
-      rewards[result] = (rewards[result] || 0) + 1;
+      rewards[result] = (rewards[result] || 0) + amount;
     });
     return rewards;
   }
@@ -1211,10 +1296,13 @@
   function drawTower(tower) {
     const config = B.towers[tower.id];
     const selected = runtime.selectedPlaced === tower;
-    const height = Math.min(22, 9 + tower.stars * 2.2);
+    const height = Math.min(24, 10 + tower.stars * 2.4);
+    const recoil = tower.recoil || 0;
+    const heat = tower.heat || 0;
+    const angle = tower.angle ?? -Math.PI / 2;
     ctx.save();
     ctx.translate(tower.x, tower.y);
-    if (selected) {
+    if (selected && config.range) {
       const range = (config.range || 1.5) * CW * permanentMultipliers(tower.id).range;
       ctx.strokeStyle = "rgba(230, 178, 95, .42)";
       ctx.fillStyle = "rgba(230, 178, 95, .055)";
@@ -1228,45 +1316,114 @@
     ctx.beginPath();
     ctx.ellipse(0, 13, 25, 9, 0, 0, Math.PI * 2);
     ctx.fill();
-    glow(config.color, selected ? 20 : 9);
-    diamond(0, 6, 40, 22);
-    ctx.fillStyle = "#17130f";
+    glow(config.color, selected ? 22 : 10 + heat * 8);
+    diamond(0, 7, 42, 24);
+    const base = ctx.createLinearGradient(-18, -5, 18, 22);
+    base.addColorStop(0, "#39302a");
+    base.addColorStop(.5, "#151210");
+    base.addColorStop(1, "#0a0807");
+    ctx.fillStyle = base;
     ctx.fill();
-    ctx.strokeStyle = config.color;
+    ctx.strokeStyle = heat ? "#f4d09b" : config.color;
     ctx.lineWidth = selected ? 2.4 : 1.2;
     ctx.stroke();
+    ctx.fillStyle = "rgba(231, 178, 97, .55)";
+    for (let i = 0; i < Math.min(5, tower.stars); i += 1) {
+      ctx.beginPath();
+      ctx.arc(-15 + i * 7.5, 14, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
     if (config.category === "magic") {
       ctx.rotate(Math.sin(runtime.elapsed * .7 + tower.col) * .05);
+      const starPulse = 1 + Math.sin(runtime.elapsed * 2.2 + tower.stars) * .06;
       ctx.strokeStyle = config.color;
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.moveTo(-14, 8);
-      ctx.lineTo(0, -height - 16);
+      ctx.lineTo(0, -height - 18);
       ctx.lineTo(14, 8);
       ctx.closePath();
       ctx.stroke();
+      ctx.fillStyle = "rgba(16, 10, 22, .78)";
       ctx.beginPath();
-      ctx.arc(0, -height - 3, 7 + Math.sin(runtime.elapsed * 3 + tower.row) * 1.4, 0, Math.PI * 2);
+      ctx.moveTo(-10, 5);
+      ctx.lineTo(0, -height - 12);
+      ctx.lineTo(10, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, -height - 5, (7 + Math.sin(runtime.elapsed * 3 + tower.row) * 1.4) * starPulse, 0, Math.PI * 2);
       ctx.fillStyle = config.color;
       ctx.fill();
       ctx.strokeStyle = "rgba(255,255,255,.36)";
       ctx.beginPath();
-      ctx.arc(0, -height - 3, 18, runtime.elapsed, runtime.elapsed + Math.PI * 1.2);
+      ctx.arc(0, -height - 5, 18 + Math.min(14, tower.stars * .35), runtime.elapsed, runtime.elapsed + Math.PI * 1.2);
       ctx.stroke();
+      if (tower.id === "goldRitual") {
+        ctx.fillStyle = "#f7d078";
+        ctx.fillRect(-5, -height - 26, 10, 7);
+      }
     } else {
       ctx.fillStyle = "#4a3324";
       ctx.fillRect(-12, -height, 24, height + 11);
       ctx.fillStyle = "#91633c";
-      ctx.fillRect(-8, -height - 8, 16, 10);
-      ctx.fillStyle = config.color;
-      const barrel = tower.id === "cannon" ? 18 : tower.id === "repeater" ? 24 : 16;
-      ctx.fillRect(-3, -height - 11, barrel, 5);
-      if (tower.id === "tesla" || tower.id === "cryo") {
+      ctx.fillRect(-8, -height - 9, 16, 11);
+      ctx.save();
+      ctx.translate(0, -height - 5);
+      ctx.rotate(angle);
+      const kick = recoil * (tower.id === "cannon" ? 12 : 7);
+      ctx.fillStyle = "#2b211b";
+      ctx.fillRect(-10, -9, 18, 18);
+      ctx.strokeStyle = "rgba(242, 198, 128, .52)";
+      ctx.strokeRect(-10, -9, 18, 18);
+      if (tower.id === "repeater") {
+        ctx.fillStyle = "#d8a760";
+        [-5, 0, 5].forEach(offset => ctx.fillRect(4 - kick, offset - 1.4, 31, 2.8));
+        ctx.fillStyle = heat ? "#fff1ad" : "#9a6b42";
+        ctx.fillRect(31 - kick, -6, 6, 12);
+      } else if (tower.id === "cannon") {
+        ctx.fillStyle = "#201815";
+        ctx.fillRect(2 - kick, -8, 33, 16);
+        ctx.strokeStyle = "#e1764c";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(3 - kick, -7, 30, 14);
+        ctx.fillStyle = `rgba(245, 91, 48, ${.22 + heat * .55})`;
+        ctx.fillRect(29 - kick, -5, 8, 10);
+      } else if (tower.id === "tesla") {
+        ctx.strokeStyle = "#7ae9ff";
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i += 1) {
+          ctx.beginPath();
+          ctx.arc(14 + i * 5 - kick, 0, 6, -Math.PI / 2, Math.PI / 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = heat ? "#f2ffff" : "#7ae9ff";
         ctx.beginPath();
-        ctx.arc(0, -height - 13, 7, 0, Math.PI * 2);
+        ctx.arc(35 - kick, 0, 5 + heat * 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (tower.id === "cryo") {
+        ctx.fillStyle = "#20343a";
+        ctx.fillRect(2 - kick, -7, 29, 14);
+        ctx.fillStyle = "#a8efff";
+        ctx.fillRect(25 - kick, -5, 10, 10);
+        ctx.strokeStyle = "rgba(190,245,255,.65)";
+        ctx.beginPath();
+        ctx.arc(31 - kick, 0, 10 + heat * 4, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = "#c89352";
+        ctx.fillRect(4 - kick, -4, 24, 8);
+        ctx.fillStyle = heat ? "#fff2b1" : "#4b3020";
+        ctx.fillRect(27 - kick, -5, 6, 10);
+      }
+      ctx.restore();
+      if (tower.stars >= 3) drawGear(-13, -height + 5, 6, 8, "rgba(222, 164, 86, .8)", runtime.elapsed * (tower.id === "repeater" ? 3 : 1));
+      if (heat) {
+        ctx.fillStyle = `rgba(255, 199, 107, ${heat * .45})`;
+        ctx.beginPath();
+        ctx.arc(Math.cos(angle) * 30, -height - 5 + Math.sin(angle) * 30, 5 + heat * 6, 0, Math.PI * 2);
         ctx.fill();
       }
-      if (tower.stars >= 3) drawGear(-13, -height + 5, 6, 8, "rgba(222, 164, 86, .8)", runtime.elapsed);
     }
     resetGlow();
     ctx.fillStyle = "#f1dfba";
@@ -1280,9 +1437,10 @@
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     const size = enemy.elite ? 1.45 : enemy.type === "giant" ? 1.28 : 1;
+    const limp = Math.sin(runtime.elapsed * 7 * enemy.speed + enemy.progress) * 3;
     ctx.fillStyle = "rgba(0,0,0,.45)";
     ctx.beginPath();
-    ctx.ellipse(0, 13 * size, 16 * size, 7 * size, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 15 * size, 18 * size, 7 * size, 0, 0, Math.PI * 2);
     ctx.fill();
     if (enemy.shield > 0) {
       glow("rgba(170, 108, 238, .6)", 13);
@@ -1293,51 +1451,177 @@
       ctx.stroke();
       resetGlow();
     }
-    ctx.fillStyle = enemy.color;
+    ctx.strokeStyle = "#2a221d";
+    ctx.lineWidth = 4 * size;
+    ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.ellipse(0, 2, 9 * size, 15 * size, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = enemy.type === "armored" ? "#8e8a7b" : "#c4b482";
+    ctx.moveTo(-7 * size, 7 * size);
+    ctx.lineTo(-15 * size, 18 * size + limp);
+    ctx.moveTo(7 * size, 7 * size);
+    ctx.lineTo(14 * size, 18 * size - limp);
+    ctx.moveTo(-8 * size, -2 * size);
+    ctx.lineTo(-17 * size, 8 * size - limp);
+    ctx.moveTo(8 * size, -1 * size);
+    ctx.lineTo(18 * size, 7 * size + limp);
+    ctx.stroke();
+    const flesh = ctx.createLinearGradient(-10, -18 * size, 10, 18 * size);
+    flesh.addColorStop(0, enemy.type === "armored" ? "#8d8a7c" : "#a29a78");
+    flesh.addColorStop(.45, enemy.color);
+    flesh.addColorStop(1, "#2f271f");
+    ctx.fillStyle = flesh;
     ctx.beginPath();
-    ctx.arc(0, -12 * size, 6.8 * size, 0, Math.PI * 2);
+    ctx.ellipse(0, 2 * size, 10 * size, 17 * size, .08, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = enemy.type === "armored" ? "#7f817b" : "#b8ad8c";
+    ctx.beginPath();
+    ctx.ellipse(0, -14 * size, 7.3 * size, 8.7 * size, -.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#191311";
+    ctx.beginPath();
+    ctx.arc(-2.5 * size, -15 * size, 1.3 * size, 0, Math.PI * 2);
+    ctx.arc(3.5 * size, -14 * size, 1.2 * size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(230, 214, 170, .45)";
+    ctx.lineWidth = 1.2 * size;
+    ctx.beginPath();
+    ctx.moveTo(-3 * size, -9.5 * size);
+    ctx.lineTo(4 * size, -9 * size);
+    ctx.stroke();
     if (enemy.type === "runner") {
-      ctx.strokeStyle = "#c4b482";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#c7a36d";
+      ctx.lineWidth = 2.2 * size;
       ctx.beginPath();
-      ctx.moveTo(-8, 10);
-      ctx.lineTo(-17, 20);
-      ctx.moveTo(8, 10);
-      ctx.lineTo(16, 18);
+      ctx.moveTo(-5 * size, 9 * size);
+      ctx.lineTo(-21 * size, 19 * size + limp);
+      ctx.moveTo(6 * size, 9 * size);
+      ctx.lineTo(21 * size, 16 * size - limp);
       ctx.stroke();
     } else if (enemy.type === "mage") {
       ctx.strokeStyle = "#b98aff";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(12, -16);
-      ctx.lineTo(20, 11);
+      ctx.moveTo(13 * size, -20 * size);
+      ctx.lineTo(21 * size, 12 * size);
       ctx.stroke();
       glow("#b98aff", 12);
       ctx.fillStyle = "#b98aff";
       ctx.beginPath();
-      ctx.arc(12, -17, 4, 0, Math.PI * 2);
+      ctx.arc(13 * size, -21 * size, 4.5 * size, 0, Math.PI * 2);
       ctx.fill();
       resetGlow();
     } else if (enemy.type === "armored") {
-      ctx.strokeStyle = "#afa78d";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(-9, -3, 18, 15);
+      ctx.fillStyle = "rgba(164, 159, 137, .72)";
+      ctx.fillRect(-10 * size, -5 * size, 20 * size, 16 * size);
+      ctx.strokeStyle = "#d2c59d";
+      ctx.lineWidth = 2 * size;
+      ctx.strokeRect(-10 * size, -5 * size, 20 * size, 16 * size);
     } else if (enemy.type === "giant" || enemy.elite) {
       ctx.fillStyle = "#594638";
-      ctx.fillRect(-14 * size, -5, 28 * size, 22 * size);
+      ctx.fillRect(-15 * size, -5 * size, 30 * size, 23 * size);
       ctx.fillStyle = "#9f6b42";
-      ctx.fillRect(-5, -26 * size, 10, 9 * size);
+      ctx.fillRect(-5 * size, -27 * size, 10 * size, 9 * size);
+      ctx.strokeStyle = "rgba(183, 117, 68, .7)";
+      ctx.lineWidth = 2 * size;
+      ctx.strokeRect(-15 * size, -5 * size, 30 * size, 23 * size);
     }
     const width = enemy.elite ? 48 : enemy.type === "giant" ? 40 : 31;
     ctx.fillStyle = "rgba(13,10,9,.88)";
     ctx.fillRect(-width / 2, -31 * size, width, 5);
     ctx.fillStyle = enemy.shield > 0 ? "#a66fed" : "#d35a45";
     ctx.fillRect(-width / 2, -31 * size, width * Math.max(0, enemy.hp / enemy.maxHp), 5);
+    ctx.restore();
+  }
+
+  function drawJaggedLine(x1, y1, x2, y2, color, width, alpha) {
+    const segments = 7;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    for (let i = 1; i < segments; i += 1) {
+      const t = i / segments;
+      const x = x1 + (x2 - x1) * t;
+      const y = y1 + (y2 - y1) * t;
+      const jitter = (Math.random() - .5) * 13;
+      ctx.lineTo(x + jitter, y - jitter * .55);
+    }
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawProjectile(projectile) {
+    const maxLife = projectile.maxLife || .12;
+    const alpha = Math.max(0, projectile.life / maxLife);
+    const progress = 1 - alpha;
+    const midX = (projectile.x + projectile.tx) / 2;
+    const midY = (projectile.y + projectile.ty) / 2 - 20;
+    const x = (1 - progress) * (1 - progress) * projectile.x + 2 * (1 - progress) * progress * midX + progress * progress * projectile.tx;
+    const y = (1 - progress) * (1 - progress) * projectile.y + 2 * (1 - progress) * progress * midY + progress * progress * projectile.ty;
+    ctx.save();
+    glow(projectile.color, projectile.type === "cannon" ? 20 : 13);
+    if (projectile.type === "tesla") {
+      drawJaggedLine(projectile.x, projectile.y, projectile.tx, projectile.ty, projectile.color, 3.8, alpha);
+      drawJaggedLine(projectile.x, projectile.y, projectile.tx, projectile.ty, "rgba(244,255,255,.92)", 1.2, alpha * .8);
+    } else if (projectile.type === "cannon") {
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "rgba(86, 66, 54, .45)";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(projectile.x, projectile.y);
+      ctx.quadraticCurveTo(midX, midY + 12, x, y);
+      ctx.stroke();
+      ctx.fillStyle = "#f0653d";
+      ctx.beginPath();
+      ctx.arc(x, y, 8 + progress * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(246, 118, 58, ${alpha * .8})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(projectile.tx, projectile.ty, projectile.splash * progress, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (projectile.type === "cryo") {
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "rgba(178,239,255,.34)";
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(projectile.x, projectile.y);
+      ctx.quadraticCurveTo(midX, midY, x, y);
+      ctx.stroke();
+      ctx.fillStyle = "#c9f8ff";
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(184,246,255,${alpha * .42})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(projectile.tx, projectile.ty, 18 * progress, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (projectile.type === "repeater") {
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = projectile.color;
+      ctx.lineWidth = 2.3;
+      [-4, 0, 4].forEach(offset => {
+        ctx.beginPath();
+        ctx.moveTo(projectile.x, projectile.y + offset);
+        ctx.lineTo(projectile.tx, projectile.ty + offset * .25);
+        ctx.stroke();
+      });
+    } else {
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = projectile.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(projectile.x, projectile.y);
+      ctx.quadraticCurveTo(midX, midY, projectile.tx, projectile.ty);
+      ctx.stroke();
+      ctx.fillStyle = "#ffe2a3";
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    resetGlow();
     ctx.restore();
   }
 
@@ -1354,6 +1638,10 @@
       const x = (i * 139 + Math.floor(runtime.elapsed * 8)) % canvas.width;
       const y = (i * 83) % canvas.height;
       ctx.fillRect(x, y, 1.5, 1.5);
+    }
+    ctx.save();
+    if (runtime.shake) {
+      ctx.translate((Math.random() - .5) * runtime.shake * 24, (Math.random() - .5) * runtime.shake * 18);
     }
     for (let row = 0; row < B.grid.rows; row += 1) {
       for (let col = 0; col < B.grid.cols; col += 1) {
@@ -1376,18 +1664,7 @@
     drawFortress();
     runtime.towers.forEach(drawTower);
     runtime.enemies.forEach(drawEnemy);
-    runtime.projectiles.forEach(projectile => {
-      const alpha = projectile.life / .12;
-      ctx.globalAlpha = alpha;
-      glow(projectile.color, 13);
-      ctx.strokeStyle = projectile.color;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(projectile.x, projectile.y);
-      ctx.quadraticCurveTo((projectile.x + projectile.tx) / 2, (projectile.y + projectile.ty) / 2 - 16, projectile.tx, projectile.ty);
-      ctx.stroke();
-      resetGlow();
-    });
+    runtime.projectiles.forEach(drawProjectile);
     ctx.globalAlpha = 1;
     particles.forEach(particle => {
       ctx.globalAlpha = Math.max(0, particle.life / .42);
@@ -1399,6 +1676,7 @@
       resetGlow();
     });
     ctx.globalAlpha = 1;
+    ctx.restore();
     if (runtime.flash) {
       ctx.fillStyle = `rgba(128,196,255,${runtime.flash})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);

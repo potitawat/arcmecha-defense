@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Zombie biosample">
+  <defs>
+    <linearGradient id="v" x1="32" x2="65" y1="8" y2="88">
+      <stop offset="0" stop-color="#d8ffc2"/>
+      <stop offset=".46" stop-color="#75a85f"/>
+      <stop offset=".8" stop-color="#30442b"/>
+      <stop offset="1" stop-color="#11170e"/>
+    </linearGradient>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity=".7"/>
+    </filter>
+  </defs>
+  <path d="M39 10h18v16l17 32c7 14-3 29-18 29H40c-15 0-25-15-18-29l17-32z" fill="url(#v)" filter="url(#s)"/>
+  <path d="M34 59c10-9 18 11 29 0 5 13-2 21-15 21-12 0-19-8-14-21z" fill="#a9dc83" opacity=".62"/>
+  <path d="M37 25h22" stroke="#e1ffd6" stroke-width="5" stroke-linecap="round" opacity=".65"/>
+  <circle cx="39" cy="62" r="4" fill="#1b2618"/>
+  <circle cx="58" cy="65" r="3" fill="#1b2618"/>
+</svg>

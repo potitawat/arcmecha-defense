@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Field gold">
+  <defs>
+    <radialGradient id="g" cx="35%" cy="25%" r="70%">
+      <stop offset="0" stop-color="#fff0a8"/>
+      <stop offset=".42" stop-color="#e6a84e"/>
+      <stop offset=".78" stop-color="#7d421d"/>
+      <stop offset="1" stop-color="#2a170d"/>
+    </radialGradient>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity=".65"/>
+    </filter>
+  </defs>
+  <circle cx="48" cy="48" r="36" fill="url(#g)" filter="url(#s)"/>
+  <circle cx="48" cy="48" r="28" fill="none" stroke="#ffe08a" stroke-width="4" opacity=".55"/>
+  <path d="M48 20l7 18 19 2-14 12 4 19-16-10-16 10 4-19-14-12 19-2z" fill="#3a1b0c" opacity=".46"/>
+  <path d="M33 58c10 8 24 7 33-2" fill="none" stroke="#fff3b5" stroke-width="4" stroke-linecap="round" opacity=".52"/>
+</svg>
