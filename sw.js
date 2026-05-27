@@ -1,4 +1,4 @@
-const CACHE = "arcmecha-defense-v1";
+const CACHE = "arcmecha-defense-v2";
 const FILES = [
   "./",
   "./index.html",
@@ -7,8 +7,8 @@ const FILES = [
   "./game.js",
   "./icon.svg",
   "./manifest.webmanifest",
-  "./assets/fortress-hero.jpg",
-  "./assets/zombie-king.jpg"
+  "./assets/fortress-hero-v2.jpg",
+  "./assets/zombie-king-v2.jpg"
 ];
 
 self.addEventListener("install", event => {

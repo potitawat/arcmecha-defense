@@ -79,6 +79,8 @@
       this.ctx = null;
       this.beatTimer = 0;
       this.beat = 0;
+      this.master = null;
+      this.noise = null;
     }
 
     unlock() {
@@ -86,6 +88,10 @@
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
         this.ctx = new AudioContext();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.42;
+        this.master.connect(this.ctx.destination);
+        this.noise = this.createNoise();
       }
       if (this.ctx.state === "suspended") this.ctx.resume();
       this.updateMusic();
@@ -97,40 +103,105 @@
       if (!state.settings.music || !this.ctx) return;
       this.beatTimer = window.setInterval(() => {
         if (!state.settings.music) return;
-        this.pulse(this.beat % 4 === 0 ? 48 : 62, this.beat % 4 === 0 ? 0.12 : 0.045, .11, "sawtooth");
-        if (this.beat % 8 === 4) this.pulse(164, .035, .07, "square");
+        const step = this.beat % 16;
+        if (step === 0 || step === 8) this.kick(step === 0 ? 52 : 45);
+        if (step === 4 || step === 12) this.metalHit(step === 4 ? 0.11 : 0.075);
+        if ([2, 6, 10, 14].includes(step)) this.noiseTick(0.018);
+        if (step % 4 === 0) this.drone(step === 0 ? 41 : 55, 0.04, 0.28);
+        if (step === 7 || step === 15) this.pulse(92, 0.025, 0.14, "sawtooth", 0.08);
         this.beat += 1;
-      }, 560);
+      }, 185);
     }
 
-    pulse(freq, volume, duration, type = "triangle") {
+    createNoise() {
+      const length = this.ctx.sampleRate * 1.5;
+      const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i += 1) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / length);
+      }
+      return buffer;
+    }
+
+    output() {
+      return this.master || this.ctx.destination;
+    }
+
+    pulse(freq, volume, duration, type = "triangle", detune = 0) {
       if (!this.ctx) return;
       const now = this.ctx.currentTime;
       const oscillator = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       oscillator.type = type;
       oscillator.frequency.setValueAtTime(freq, now);
+      oscillator.detune.setValueAtTime(detune, now);
       oscillator.frequency.exponentialRampToValueAtTime(Math.max(28, freq * .72), now + duration);
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.exponentialRampToValueAtTime(volume, now + .008);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-      oscillator.connect(gain).connect(this.ctx.destination);
+      oscillator.connect(gain).connect(this.output());
       oscillator.start(now);
       oscillator.stop(now + duration + .02);
     }
 
+    filteredNoise(volume, duration, frequency, type = "bandpass") {
+      if (!this.ctx || !this.noise) return;
+      const now = this.ctx.currentTime;
+      const source = this.ctx.createBufferSource();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      source.buffer = this.noise;
+      filter.type = type;
+      filter.frequency.value = frequency;
+      filter.Q.value = 6;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + .004);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      source.connect(filter).connect(gain).connect(this.output());
+      source.start(now);
+      source.stop(now + duration + .02);
+    }
+
+    kick(freq) {
+      this.pulse(freq, 0.11, 0.18, "sine");
+      this.filteredNoise(0.022, 0.035, 120, "lowpass");
+    }
+
+    metalHit(volume) {
+      this.filteredNoise(volume, 0.13, 1800, "bandpass");
+      this.pulse(172, 0.024, 0.09, "square", -12);
+    }
+
+    noiseTick(volume) {
+      this.filteredNoise(volume, 0.045, 3200, "highpass");
+    }
+
+    drone(freq, volume, duration) {
+      this.pulse(freq, volume, duration, "sawtooth", -7);
+      this.pulse(freq * 1.5, volume * 0.28, duration * .8, "triangle", 5);
+    }
+
     fx(name) {
       if (!state.settings.fx || !this.ctx) return;
-      const clips = {
-        build: [125, .08, .12, "square"],
-        shot: [240, .023, .045, "triangle"],
-        magic: [520, .045, .14, "sine"],
-        hit: [78, .045, .09, "sawtooth"],
-        victory: [330, .1, .24, "triangle"],
-        fail: [76, .1, .32, "sawtooth"],
-        coin: [720, .035, .09, "sine"]
-      };
-      this.pulse(...(clips[name] || clips.shot));
+      if (name === "build") {
+        this.metalHit(0.09);
+        this.pulse(118, 0.035, 0.11, "square");
+      } else if (name === "shot") {
+        this.pulse(210, 0.026, 0.045, "triangle");
+        this.noiseTick(0.015);
+      } else if (name === "magic") {
+        this.pulse(420, 0.04, 0.22, "sine", 9);
+        this.pulse(630, 0.025, 0.18, "triangle", -8);
+      } else if (name === "hit") {
+        this.kick(72);
+      } else if (name === "victory") {
+        [220, 277, 330, 440].forEach((freq, index) => window.setTimeout(() => this.pulse(freq, 0.052, 0.18, "triangle"), index * 80));
+      } else if (name === "fail") {
+        this.pulse(72, 0.09, 0.36, "sawtooth", -14);
+      } else if (name === "coin") {
+        this.pulse(820, 0.03, 0.07, "sine");
+        window.setTimeout(() => this.pulse(1020, 0.022, 0.06, "sine"), 45);
+      }
     }
   }
 
@@ -299,14 +370,24 @@
     const cleared = hasStageCleared(selectedStage);
     const captured = Boolean(state.capturedNests[selectedStage]);
     const pathCount = B.paths[stage.map].length;
+    const enemyTags = stage.types.map(type => B.enemies[type].name).join(" / ");
     const dropLabels = stage.reward.rolls.map((roll, i) => {
       const description = Object.entries(roll).map(([key, chance]) => `${B.resources[key].icon} ${Math.round(chance * 100)}%`).join(" / ");
       return `<span class="drop-chip">DROP ${i + 1}: ${description}</span>`;
     }).join("");
+    const nextStep = !cleared
+      ? "Primary objective: survive all waves. Build on dark metal plates; brass-lit roads are enemy lanes."
+      : captured
+        ? "This stage is secured. Replay defense for material rolls or tune your fortress for later stages."
+        : "Defense cleared. Assault the nest to unlock timed production on this site.";
     ui.stagePanel.innerHTML = `
       <p class="eyebrow">STAGE ${selectedStage.toString().padStart(2, "0")} ${cleared ? "// SECURED" : ""}</p>
       <h3>${stage.name}</h3>
-      <p class="stage-subline">${stage.waves} waves / ${pathCount} route${pathCount > 1 ? "s" : ""} / RP ${stage.reward.research} on victory</p>
+      <p class="stage-subline">${stage.waves} waves / ${pathCount} route${pathCount > 1 ? "s" : ""} / ${enemyTags}</p>
+      <div class="mission-brief">
+        <strong>${nextStep}</strong>
+        <span>Victory: RP ${stage.reward.research} plus material rolls. Defeat: partial RP only.</span>
+      </div>
       <div class="drop-row">${dropLabels}</div>
       <div class="stage-actions">
         <button class="primary" id="start-defense" ${unlocked ? "" : "disabled"}>${cleared ? "REPLAY DEFENSE" : "DEPLOY DEFENSE"}</button>
@@ -587,10 +668,15 @@
 
   function renderTowerDeck() {
     if (!runtime) return;
-    ui.towerDeck.innerHTML = availableTowers().map(([id, tower]) => `
-      <button class="tower-choice ${runtime.selectedTower === id ? "selected" : ""}" data-tower="${id}" style="color:${tower.color}">
-        <i></i><strong>${tower.short}</strong><small>${tower.price} G</small>
-      </button>`).join("");
+    ui.towerDeck.innerHTML = availableTowers().map(([id, tower]) => {
+      const statLine = tower.category === "magic"
+        ? `Global / ${tower.effectInterval ? `${tower.effectInterval}s cycle` : "passive"}`
+        : `DMG ${tower.damage} / RNG ${tower.range}`;
+      return `
+      <button class="tower-choice ${runtime.selectedTower === id ? "selected" : ""}" data-tower="${id}" style="--tower:${tower.color}">
+        <i></i><strong>${tower.short}</strong><small>${tower.price}G</small><em>${statLine}</em>
+      </button>`;
+    }).join("");
     ui.towerDeck.querySelectorAll("[data-tower]").forEach(button => {
       button.onclick = () => {
         runtime.selectedTower = button.dataset.tower;
@@ -609,14 +695,14 @@
       const config = B.towers[tower.id];
       const upgradable = config.category === "mechanical" && tower.stars < config.maxStars;
       const price = Math.ceil(config.upgradeCost * Math.pow(1.4, tower.stars - 1));
-      ui.selectedInfo.textContent = `${config.name} // ${tower.stars} STAR${tower.stars > 1 ? "S" : ""}`;
+      ui.selectedInfo.innerHTML = `<strong>${config.name}</strong><span>${tower.stars} star${tower.stars > 1 ? "s" : ""} // ${config.role}</span>`;
       ui.towerUpgrade.textContent = upgradable ? `UPGRADE ${price} G` : config.category === "magic" ? "AUTO ASCENSION" : "MAX STARS";
       ui.towerUpgrade.disabled = !upgradable || runtime.gold < price;
       ui.towerUpgrade.classList.remove("hidden");
       return;
     }
     const tower = B.towers[runtime.selectedTower];
-    ui.selectedInfo.textContent = `${tower.name} // ${tower.category === "magic" ? "AUTO STARS" : "MAX 5 STARS"}`;
+    ui.selectedInfo.innerHTML = `<strong>${tower.name}</strong><span>${tower.category === "magic" ? "Global effect. Auto-stars over time." : "Tap a free dark plate to build. Tap a tower to upgrade."}</span>`;
     ui.towerUpgrade.classList.add("hidden");
   }
 
@@ -865,8 +951,16 @@
   }
 
   function burst(x, y, color) {
-    for (let i = 0; i < 7; i += 1) {
-      particles.push({ x, y, dx: (Math.random() - .5) * 76, dy: (Math.random() - .5) * 76, life: .42, color });
+    for (let i = 0; i < 13; i += 1) {
+      particles.push({
+        x,
+        y,
+        dx: (Math.random() - .5) * 96,
+        dy: (Math.random() - .65) * 88,
+        life: .36 + Math.random() * .22,
+        size: 1.4 + Math.random() * 2.6,
+        color
+      });
     }
   }
 
@@ -978,160 +1072,342 @@
     return `${minutes}:${(time % 60).toString().padStart(2, "0")}`;
   }
 
+  function diamond(cx, cy, w, h) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - h / 2);
+    ctx.lineTo(cx + w / 2, cy);
+    ctx.lineTo(cx, cy + h / 2);
+    ctx.lineTo(cx - w / 2, cy);
+    ctx.closePath();
+  }
+
+  function glow(color, blur = 12) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = blur;
+  }
+
+  function resetGlow() {
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+  }
+
   function drawTile(col, row, road) {
     const x = col * CW;
     const y = row * CH;
-    ctx.beginPath();
-    ctx.moveTo(x + 2, y + 8);
-    ctx.lineTo(x + CW - 5, y + 2);
-    ctx.lineTo(x + CW - 2, y + CH - 9);
-    ctx.lineTo(x + 6, y + CH - 3);
-    ctx.closePath();
-    ctx.fillStyle = road ? "#30261f" : ((col + row) % 2 ? "#181713" : "#131310");
+    const cx = x + CW / 2;
+    const cy = y + CH / 2;
+    const seed = (col * 17 + row * 31) % 7;
+    diamond(cx, cy, CW - 6, CH - 12);
+    const fill = ctx.createLinearGradient(x, y, x + CW, y + CH);
+    if (road) {
+      fill.addColorStop(0, "#3b2b21");
+      fill.addColorStop(.48, "#201713");
+      fill.addColorStop(1, "#4b321f");
+    } else {
+      fill.addColorStop(0, seed % 2 ? "#1e1d19" : "#171815");
+      fill.addColorStop(.6, "#11120f");
+      fill.addColorStop(1, seed % 3 ? "#24211a" : "#171410");
+    }
+    ctx.fillStyle = fill;
     ctx.fill();
-    ctx.strokeStyle = road ? "rgba(209,150,77,.24)" : "rgba(190,139,74,.07)";
+    ctx.strokeStyle = road ? "rgba(228, 151, 73, .46)" : "rgba(176, 130, 74, .14)";
+    ctx.lineWidth = road ? 1.4 : .8;
     ctx.stroke();
     if (road) {
+      glow("rgba(235, 122, 55, .35)", 10);
+      ctx.strokeStyle = "rgba(240, 157, 79, .36)";
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.moveTo(x + 13, y + CH / 2 + 2);
-      ctx.lineTo(x + CW - 12, y + CH / 2 - 2);
-      ctx.strokeStyle = "rgba(210,159,88,.17)";
+      ctx.moveTo(x + 12, cy + 2);
+      ctx.lineTo(x + CW - 12, cy - 2);
       ctx.stroke();
+      resetGlow();
+    } else {
+      ctx.fillStyle = `rgba(202, 151, 87, ${0.04 + seed * 0.008})`;
+      ctx.fillRect(x + 13 + seed, y + 15, 11, 2);
+      ctx.fillRect(x + 31, y + 34 + seed, 15, 1.5);
     }
+  }
+
+  function drawRoutePreview() {
+    ctx.save();
+    runtime.paths.forEach(path => {
+      ctx.strokeStyle = "rgba(235, 151, 72, .16)";
+      ctx.lineWidth = 15;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      path.forEach((point, index) => {
+        const x = (point[0] + .5) * CW;
+        const y = (point[1] + .5) * CH;
+        if (index) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+      glow("rgba(236, 102, 49, .38)", 18);
+      ctx.strokeStyle = "rgba(234, 132, 61, .35)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      resetGlow();
+    });
+    ctx.restore();
   }
 
   function drawFortress() {
     const x = 4 * CW + CW / 2;
-    const y = canvas.height - 17;
+    const y = canvas.height - 18;
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = "#241b15";
-    ctx.fillRect(-67, -34, 134, 38);
-    ctx.fillStyle = "#94633b";
-    ctx.fillRect(-43, -50, 86, 45);
-    ctx.fillStyle = "#d39b57";
-    ctx.fillRect(-11, -68, 22, 36);
-    ctx.fillStyle = "#a168d9";
-    ctx.shadowColor = "#a168d9";
-    ctx.shadowBlur = 15;
+    ctx.fillStyle = "rgba(0,0,0,.38)";
     ctx.beginPath();
-    ctx.arc(0, -35, 8, 0, Math.PI * 2);
+    ctx.ellipse(0, -6, 92, 24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#2b211b";
+    ctx.fillRect(-76, -46, 152, 48);
+    ctx.fillStyle = "#7f5637";
+    ctx.fillRect(-55, -72, 110, 55);
+    ctx.fillStyle = "#c78b4d";
+    ctx.fillRect(-18, -98, 36, 46);
+    ctx.fillRect(-71, -62, 24, 36);
+    ctx.fillRect(47, -62, 24, 36);
+    ctx.strokeStyle = "rgba(242, 192, 112, .6)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-55, -72, 110, 55);
+    glow("#a46de8", 22);
+    ctx.fillStyle = "#b985ff";
+    ctx.beginPath();
+    ctx.arc(0, -52, 10 + Math.sin(runtime.elapsed * 3) * 2, 0, Math.PI * 2);
+    ctx.fill();
+    resetGlow();
+    ctx.strokeStyle = "rgba(161, 107, 220, .45)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -52, 26 + Math.sin(runtime.elapsed * 2) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawGear(x, y, radius, teeth, color, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < teeth * 2; i += 1) {
+      const r = i % 2 ? radius * .78 : radius;
+      const angle = i * Math.PI / teeth;
+      ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * .34, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+    ctx.globalCompositeOperation = "source-over";
   }
 
   function drawTower(tower) {
     const config = B.towers[tower.id];
+    const selected = runtime.selectedPlaced === tower;
+    const height = Math.min(22, 9 + tower.stars * 2.2);
     ctx.save();
     ctx.translate(tower.x, tower.y);
-    ctx.fillStyle = "#12100e";
-    ctx.beginPath();
-    ctx.ellipse(0, 12, 23, 9, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = config.color;
-    ctx.globalAlpha = .26;
-    ctx.beginPath();
-    ctx.arc(0, 0, config.category === "magic" ? 24 : 17, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    if (config.category === "magic") {
-      ctx.strokeStyle = config.color;
+    if (selected) {
+      const range = (config.range || 1.5) * CW * permanentMultipliers(tower.id).range;
+      ctx.strokeStyle = "rgba(230, 178, 95, .42)";
+      ctx.fillStyle = "rgba(230, 178, 95, .055)";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(-13, 11);
-      ctx.lineTo(0, -22);
-      ctx.lineTo(13, 11);
+      ctx.arc(0, 0, range, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(0,0,0,.42)";
+    ctx.beginPath();
+    ctx.ellipse(0, 13, 25, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    glow(config.color, selected ? 20 : 9);
+    diamond(0, 6, 40, 22);
+    ctx.fillStyle = "#17130f";
+    ctx.fill();
+    ctx.strokeStyle = config.color;
+    ctx.lineWidth = selected ? 2.4 : 1.2;
+    ctx.stroke();
+    if (config.category === "magic") {
+      ctx.rotate(Math.sin(runtime.elapsed * .7 + tower.col) * .05);
+      ctx.strokeStyle = config.color;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-14, 8);
+      ctx.lineTo(0, -height - 16);
+      ctx.lineTo(14, 8);
       ctx.closePath();
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(0, -5, 7, 0, Math.PI * 2);
+      ctx.arc(0, -height - 3, 7 + Math.sin(runtime.elapsed * 3 + tower.row) * 1.4, 0, Math.PI * 2);
       ctx.fillStyle = config.color;
       ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.36)";
+      ctx.beginPath();
+      ctx.arc(0, -height - 3, 18, runtime.elapsed, runtime.elapsed + Math.PI * 1.2);
+      ctx.stroke();
     } else {
-      ctx.fillStyle = "#60442d";
-      ctx.fillRect(-12, -4, 24, 22);
+      ctx.fillStyle = "#4a3324";
+      ctx.fillRect(-12, -height, 24, height + 11);
+      ctx.fillStyle = "#91633c";
+      ctx.fillRect(-8, -height - 8, 16, 10);
       ctx.fillStyle = config.color;
-      ctx.fillRect(-8, -13, 27, 8);
-      ctx.fillRect(-4, -22, 8, 13);
+      const barrel = tower.id === "cannon" ? 18 : tower.id === "repeater" ? 24 : 16;
+      ctx.fillRect(-3, -height - 11, barrel, 5);
+      if (tower.id === "tesla" || tower.id === "cryo") {
+        ctx.beginPath();
+        ctx.arc(0, -height - 13, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (tower.stars >= 3) drawGear(-13, -height + 5, 6, 8, "rgba(222, 164, 86, .8)", runtime.elapsed);
     }
-    ctx.fillStyle = "#eddbbe";
+    resetGlow();
+    ctx.fillStyle = "#f1dfba";
     ctx.font = "bold 10px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(`★${tower.stars}`, 0, 31);
+    ctx.fillText(config.category === "magic" ? `★${tower.stars}` : "★".repeat(tower.stars), 0, 32);
     ctx.restore();
   }
 
   function drawEnemy(enemy) {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
+    const size = enemy.elite ? 1.45 : enemy.type === "giant" ? 1.28 : 1;
+    ctx.fillStyle = "rgba(0,0,0,.45)";
+    ctx.beginPath();
+    ctx.ellipse(0, 13 * size, 16 * size, 7 * size, 0, 0, Math.PI * 2);
+    ctx.fill();
     if (enemy.shield > 0) {
-      ctx.strokeStyle = "rgba(167,113,231,.78)";
-      ctx.lineWidth = 3;
+      glow("rgba(170, 108, 238, .6)", 13);
+      ctx.strokeStyle = "rgba(185,125,244,.78)";
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(0, 0, enemy.elite ? 23 : 18, 0, Math.PI * 2);
+      ctx.arc(0, -1, 19 * size, 0, Math.PI * 2);
       ctx.stroke();
+      resetGlow();
     }
     ctx.fillStyle = enemy.color;
     ctx.beginPath();
-    ctx.ellipse(0, 4, enemy.elite ? 16 : enemy.type === "giant" ? 14 : 10, enemy.elite ? 20 : enemy.type === "giant" ? 19 : 14, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 2, 9 * size, 15 * size, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#c3ae79";
+    ctx.fillStyle = enemy.type === "armored" ? "#8e8a7b" : "#c4b482";
     ctx.beginPath();
-    ctx.arc(0, -10, enemy.elite ? 10 : 7, 0, Math.PI * 2);
+    ctx.arc(0, -12 * size, 6.8 * size, 0, Math.PI * 2);
     ctx.fill();
-    const width = enemy.elite ? 42 : 30;
-    ctx.fillStyle = "#271b18";
-    ctx.fillRect(-width / 2, -29, width, 4);
-    ctx.fillStyle = "#d35945";
-    ctx.fillRect(-width / 2, -29, width * Math.max(0, enemy.hp / enemy.maxHp), 4);
+    if (enemy.type === "runner") {
+      ctx.strokeStyle = "#c4b482";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-8, 10);
+      ctx.lineTo(-17, 20);
+      ctx.moveTo(8, 10);
+      ctx.lineTo(16, 18);
+      ctx.stroke();
+    } else if (enemy.type === "mage") {
+      ctx.strokeStyle = "#b98aff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(12, -16);
+      ctx.lineTo(20, 11);
+      ctx.stroke();
+      glow("#b98aff", 12);
+      ctx.fillStyle = "#b98aff";
+      ctx.beginPath();
+      ctx.arc(12, -17, 4, 0, Math.PI * 2);
+      ctx.fill();
+      resetGlow();
+    } else if (enemy.type === "armored") {
+      ctx.strokeStyle = "#afa78d";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(-9, -3, 18, 15);
+    } else if (enemy.type === "giant" || enemy.elite) {
+      ctx.fillStyle = "#594638";
+      ctx.fillRect(-14 * size, -5, 28 * size, 22 * size);
+      ctx.fillStyle = "#9f6b42";
+      ctx.fillRect(-5, -26 * size, 10, 9 * size);
+    }
+    const width = enemy.elite ? 48 : enemy.type === "giant" ? 40 : 31;
+    ctx.fillStyle = "rgba(13,10,9,.88)";
+    ctx.fillRect(-width / 2, -31 * size, width, 5);
+    ctx.fillStyle = enemy.shield > 0 ? "#a66fed" : "#d35a45";
+    ctx.fillRect(-width / 2, -31 * size, width * Math.max(0, enemy.hp / enemy.maxHp), 5);
     ctx.restore();
   }
 
   function drawDefense() {
     if (!runtime) return;
     const background = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    background.addColorStop(0, "#17130f");
-    background.addColorStop(1, "#090908");
+    background.addColorStop(0, "#1a1611");
+    background.addColorStop(.55, "#0f100d");
+    background.addColorStop(1, "#070706");
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "rgba(255,255,255,.025)";
+    for (let i = 0; i < 42; i += 1) {
+      const x = (i * 139 + Math.floor(runtime.elapsed * 8)) % canvas.width;
+      const y = (i * 83) % canvas.height;
+      ctx.fillRect(x, y, 1.5, 1.5);
+    }
     for (let row = 0; row < B.grid.rows; row += 1) {
       for (let col = 0; col < B.grid.cols; col += 1) {
         drawTile(col, row, runtime.occupied.has(`${col},${row}`));
       }
     }
-    ctx.fillStyle = "#b07440";
+    drawRoutePreview();
     runtime.paths.forEach(path => {
       const start = path[0];
+      glow("#e28845", 14);
+      ctx.fillStyle = "#c18046";
       ctx.beginPath();
-      ctx.moveTo((start[0] + .5) * CW - 10, 10);
-      ctx.lineTo((start[0] + .5) * CW + 10, 10);
-      ctx.lineTo((start[0] + .5) * CW, 22);
+      ctx.moveTo((start[0] + .5) * CW - 12, 12);
+      ctx.lineTo((start[0] + .5) * CW + 12, 12);
+      ctx.lineTo((start[0] + .5) * CW, 29);
       ctx.closePath();
       ctx.fill();
+      resetGlow();
     });
     drawFortress();
     runtime.towers.forEach(drawTower);
     runtime.enemies.forEach(drawEnemy);
     runtime.projectiles.forEach(projectile => {
-      ctx.globalAlpha = projectile.life / .12;
+      const alpha = projectile.life / .12;
+      ctx.globalAlpha = alpha;
+      glow(projectile.color, 13);
       ctx.strokeStyle = projectile.color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.moveTo(projectile.x, projectile.y);
-      ctx.lineTo(projectile.tx, projectile.ty);
+      ctx.quadraticCurveTo((projectile.x + projectile.tx) / 2, (projectile.y + projectile.ty) / 2 - 16, projectile.tx, projectile.ty);
       ctx.stroke();
+      resetGlow();
     });
     ctx.globalAlpha = 1;
     particles.forEach(particle => {
-      ctx.globalAlpha = particle.life / .42;
+      ctx.globalAlpha = Math.max(0, particle.life / .42);
+      glow(particle.color, 8);
       ctx.fillStyle = particle.color;
-      ctx.fillRect(particle.x - 2, particle.y - 2, 4, 4);
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size || 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      resetGlow();
     });
     ctx.globalAlpha = 1;
     if (runtime.flash) {
       ctx.fillStyle = `rgba(128,196,255,${runtime.flash})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+    const vignette = ctx.createRadialGradient(canvas.width / 2, canvas.height * .42, 120, canvas.width / 2, canvas.height / 2, 470);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(1, "rgba(0,0,0,.42)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   function placeAtCell(col, row) {
