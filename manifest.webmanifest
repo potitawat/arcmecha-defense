@@ -1,0 +1,13 @@
+{
+  "name": "ArcMecha-Defense",
+  "short_name": "ArcMecha",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090807",
+  "theme_color": "#110d0c",
+  "description": "Defend an arcane mechanical citadel against the Zombie King's technomantic horde.",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

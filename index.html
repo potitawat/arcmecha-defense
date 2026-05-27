@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#110d0c">
+    <meta name="description" content="ArcMecha-Defense: command an arcane mechanical fortress against the Zombie King's horde.">
+    <title>ArcMecha-Defense</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="preload" href="./assets/fortress-hero.jpg" as="image">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./balance.js" defer></script>
+    <script src="./game.js" defer></script>
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+    <header class="topbar">
+      <button class="brand" id="home-brand" aria-label="Return to command deck">
+        <span class="brand-mark">AM</span>
+        <span><strong>ARCMECHA</strong><b>DEFENSE</b><small>STEAM / SIGIL / SURVIVE</small></span>
+      </button>
+      <div class="header-actions">
+        <button id="music-toggle" class="round-toggle active" aria-label="Toggle music" aria-pressed="true">M</button>
+        <button id="fx-toggle" class="round-toggle active" aria-label="Toggle sound effects" aria-pressed="true">FX</button>
+      </div>
+    </header>
+
+    <main id="app">
+      <section class="resource-bar" aria-label="Command resources">
+        <div class="currency gold"><span>GOLD</span><strong id="header-gold">--</strong></div>
+        <div class="currency nano"><span>NS</span><strong id="res-nano">0</strong></div>
+        <div class="currency arcane"><span>AC</span><strong id="res-arcane">0</strong></div>
+        <div class="currency plasma"><span>PC</span><strong id="res-plasma">0</strong></div>
+        <div class="currency bio"><span>ZB</span><strong id="res-bio">0</strong></div>
+        <div class="currency research"><span>RP</span><strong id="res-research">0</strong></div>
+      </section>
+
+      <section id="view-home" class="view active" aria-label="Command deck">
+        <div class="hero-card">
+          <img src="./assets/fortress-hero.jpg" alt="The arcane mechanical fortress overlooking a ruined industrial city">
+          <div class="hero-overlay">
+            <p class="eyebrow">THE LAST TECHNOMANTIC CITADEL</p>
+            <h1>Hold the line.<br>Hunt the King.</h1>
+            <p class="hero-copy">A failed arcane-engine experiment raised a mechanized dead legion. Command the fortress, seize the nests, and end the Zombie King.</p>
+            <button id="continue-button" class="primary large">BEGIN CAMPAIGN</button>
+          </div>
+          <div class="fortress-pulse" aria-hidden="true"></div>
+        </div>
+        <div class="home-status">
+          <article class="status-card">
+            <span>FORTRESS INTEGRITY</span>
+            <strong id="home-hp">120 HP</strong>
+            <small id="home-loadout">2 weapon hardpoints online</small>
+          </article>
+          <article class="status-card">
+            <span>NEST NETWORK</span>
+            <strong id="home-nests">0 / 10</strong>
+            <small id="home-output">No secured production</small>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-campaign" class="view" aria-label="Campaign">
+        <div class="section-head">
+          <div><p class="eyebrow">CAMPAIGN</p><h2>The Rot Engine War</h2></div>
+          <span id="campaign-progress" class="badge">0 / 10 CLEARED</span>
+        </div>
+        <div id="stage-grid" class="stage-grid"></div>
+        <article id="stage-panel" class="panel stage-panel"></article>
+      </section>
+
+      <section id="view-fortress" class="view" aria-label="Fortress upgrades">
+        <div class="section-head">
+          <div><p class="eyebrow">FORTRESS</p><h2>Citadel Loadout</h2></div>
+        </div>
+        <article class="panel loadout">
+          <h3>Weapon Hardpoints</h3>
+          <p class="fine">Two unrestricted slots. Mechanical guns deal direct damage; status magic guns trade damage for disruption.</p>
+          <div id="weapon-slots" class="weapon-slots"></div>
+        </article>
+        <div id="system-upgrades" class="upgrade-grid"></div>
+      </section>
+
+      <section id="view-research" class="view" aria-label="Research">
+        <div class="section-head">
+          <div><p class="eyebrow">RESEARCH</p><h2>Tower Schematics</h2></div>
+          <span class="badge"><b id="research-balance">0</b> RP</span>
+        </div>
+        <p class="fine inset">Every tower can receive permanent research calibrations outside battle. Tower damage, range and timing values remain editable in <code>balance.js</code>.</p>
+        <div id="research-grid" class="research-grid"></div>
+      </section>
+
+      <section id="view-nests" class="view" aria-label="Captured nests">
+        <div class="section-head">
+          <div><p class="eyebrow">SECURED NESTS</p><h2>Production Grid</h2></div>
+        </div>
+        <p class="fine inset">Captured nests produce without storage limits, including while this device is offline. Build a Research Center or a Biosample Laboratory.</p>
+        <div id="nest-grid" class="nest-grid"></div>
+      </section>
+
+      <section id="view-survival" class="view" aria-label="Survival">
+        <div id="survival-content"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main menu">
+      <button data-view="home" class="selected"><span>⌂</span>DECK</button>
+      <button data-view="campaign"><span>◈</span>CAMPAIGN</button>
+      <button data-view="fortress"><span>⚙</span>FORTRESS</button>
+      <button data-view="research"><span>✦</span>RESEARCH</button>
+      <button data-view="nests"><span>⬡</span>NESTS</button>
+      <button data-view="survival"><span>∞</span>SURVIVAL</button>
+    </nav>
+
+    <section id="battle-screen" class="battle-screen hidden" aria-label="Defense battle">
+      <header class="battle-header">
+        <button id="leave-battle" class="ghost">EXIT</button>
+        <div><p id="battle-mode">DEFENSE</p><strong id="battle-title"></strong></div>
+        <div class="battle-health"><span>FORTRESS</span><strong id="battle-hp"></strong></div>
+      </header>
+      <div class="battle-stats">
+        <span>GOLD <b id="battle-gold">0</b></span>
+        <span>WAVE <b id="battle-wave">0 / 0</b></span>
+        <span id="battle-timer">DEPLOYMENT</span>
+      </div>
+      <div class="battle-map">
+        <canvas id="defense-canvas" width="600" height="720" aria-label="Defense battlefield grid"></canvas>
+        <div id="battle-toast" class="battle-toast"></div>
+      </div>
+      <div class="battle-command">
+        <div class="wave-controls">
+          <button id="send-wave" class="primary">START WAVE</button>
+          <div id="selected-info">Select a tower, then tap a free grid cell.</div>
+          <button id="tower-upgrade" class="secondary hidden">UPGRADE</button>
+        </div>
+        <div id="tower-deck" class="tower-deck" aria-label="Build towers"></div>
+      </div>
+    </section>
+
+    <section id="boss-screen" class="boss-screen hidden" aria-label="Zombie nest boss battle">
+      <img src="./assets/zombie-king.jpg" alt="" class="boss-backdrop">
+      <header class="boss-header">
+        <button id="leave-boss" class="ghost">WITHDRAW</button>
+        <div><p>NEST ASSAULT</p><strong id="boss-stage-title"></strong></div>
+      </header>
+      <div id="transformation" class="transformation">
+        <div class="citadel-form">⌂</div>
+        <div class="transmission">TRANSFORMATION SEQUENCE</div>
+        <div class="mech-form">♜</div>
+      </div>
+      <div id="duel-panel" class="duel-panel hidden">
+        <article class="combatant mech">
+          <h3>CITADEL MECH</h3>
+          <div class="hp-track"><i id="mech-hp-bar"></i></div>
+          <strong id="mech-hp"></strong>
+        </article>
+        <div class="versus">VS</div>
+        <article class="combatant boss">
+          <h3 id="boss-name"></h3>
+          <small id="boss-trait"></small>
+          <div class="hp-track"><i id="boss-hp-bar"></i></div>
+          <strong id="boss-hp"></strong>
+        </article>
+        <div id="duel-log" class="duel-log"></div>
+      </div>
+    </section>
+
+    <dialog id="result-dialog">
+      <article class="result-card">
+        <p id="result-tag" class="eyebrow"></p>
+        <h2 id="result-title"></h2>
+        <p id="result-copy"></p>
+        <div id="result-rewards" class="result-rewards"></div>
+        <button id="result-close" class="primary">RETURN TO COMMAND</button>
+      </article>
+    </dialog>
+
+    <dialog id="story-dialog">
+      <article class="story-card">
+        <p class="eyebrow">PROLOGUE // THE FRACTURE</p>
+        <h2>The machines answered the wrong prayer.</h2>
+        <p>The Arcane Engine was built to power an empire. Its awakening fused the dead with iron and sigils. Now only the walking citadel remains between the horde and extinction.</p>
+        <div class="story-actions">
+          <button id="skip-tutorial" class="secondary">SKIP TUTORIAL</button>
+          <button id="start-tutorial" class="primary">BEGIN TRAINING</button>
+        </div>
+      </article>
+    </dialog>
+  </body>
+</html>
