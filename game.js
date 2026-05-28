@@ -11,14 +11,21 @@
   const spriteAtlas = {
     image: new Image(),
     ready: false,
+    magicImage: new Image(),
+    magicReady: false,
     cols: 5,
-    rows: 2,
+    rows: 4,
+    magicCols: 4,
+    magicRows: 2,
     towers: { sentry: 0, repeater: 1, cannon: 2, tesla: 3, cryo: 4 },
+    magicTowers: { goldRitual: 0, empowerment: 1, lightningStorm: 2, frostTempest: 3 },
     enemies: { shambling: 0, runner: 1, armored: 2, mage: 3, giant: 4 }
   };
 
   spriteAtlas.image.onload = () => { spriteAtlas.ready = true; };
-  spriteAtlas.image.src = "./assets/sprites/arcmecha-sprite-atlas-v1.png";
+  spriteAtlas.image.src = "./assets/sprites/arcmecha-animated-atlas-v2.png";
+  spriteAtlas.magicImage.onload = () => { spriteAtlas.magicReady = true; };
+  spriteAtlas.magicImage.src = "./assets/sprites/magic-animated-atlas-v2.png";
 
   const ui = {
     headerGold: $("header-gold"),
@@ -92,6 +99,10 @@
       this.beat = 0;
       this.master = null;
       this.noise = null;
+      this.music = new Audio("./assets/audio/industrial-arcane-loop-v1.wav");
+      this.music.loop = true;
+      this.music.preload = "auto";
+      this.music.volume = 0.46;
     }
 
     unlock() {
@@ -111,17 +122,13 @@
     updateMusic() {
       if (this.beatTimer) window.clearInterval(this.beatTimer);
       this.beatTimer = 0;
-      if (!state.settings.music || !this.ctx) return;
-      this.beatTimer = window.setInterval(() => {
-        if (!state.settings.music) return;
-        const step = this.beat % 16;
-        if (step === 0 || step === 8) this.kick(step === 0 ? 43 : 38);
-        if (step === 4 || step === 12) this.metalHit(step === 4 ? 0.072 : 0.052);
-        if ([3, 7, 11, 15].includes(step)) this.noiseTick(0.01);
-        if (step === 0 || step === 8) this.drone(step === 0 ? 32 : 48, 0.028, 0.46);
-        if (step === 15) this.pulse(86, 0.018, 0.2, "sawtooth", -9);
-        this.beat += 1;
-      }, 245);
+      if (!this.music) return;
+      if (!state.settings.music) {
+        this.music.pause();
+        return;
+      }
+      this.music.volume = 0.46;
+      this.music.play().catch(() => {});
     }
 
     createNoise() {
@@ -303,6 +310,10 @@
     return `${resourceIcon(key)}<span>${round(value)}</span>`;
   }
 
+  function resourceName(key) {
+    return `${resourceIcon(key)}<span>${B.resources[key].icon} ${B.resources[key].name}</span>`;
+  }
+
   function costHtml(cost) {
     return Object.entries(cost || {}).map(([key, amount]) => `<span class="cost-token">${resourceIcon(key)}<b>${amount}</b></span>`).join("");
   }
@@ -312,6 +323,22 @@
       amount: roll.amount || 1,
       table: roll.table || roll
     };
+  }
+
+  function towerDps(tower) {
+    return tower.damage && tower.cooldown ? tower.damage / tower.cooldown : 0;
+  }
+
+  function towerSpriteStyle(id) {
+    if (spriteAtlas.towers[id] !== undefined) {
+      const x = spriteAtlas.towers[id] * 25;
+      return `--tower-image:url('./assets/sprites/arcmecha-animated-atlas-v2.png');--tower-bg-size:500% 400%;--tower-bg-x:${x}%;--tower-bg-y:0%;`;
+    }
+    if (spriteAtlas.magicTowers[id] !== undefined) {
+      const x = spriteAtlas.magicTowers[id] * 33.3333;
+      return `--tower-image:url('./assets/sprites/magic-animated-atlas-v2.png');--tower-bg-size:400% 200%;--tower-bg-x:${x}%;--tower-bg-y:0%;`;
+    }
+    return "";
   }
 
   function canPay(cost) {
@@ -407,6 +434,7 @@
     const captured = Boolean(state.capturedNests[selectedStage]);
     const pathCount = B.paths[stage.map].length;
     const enemyTags = stage.types.map(type => B.enemies[type].name).join(" / ");
+    const focusLabels = (stage.reward.focus || []).map(key => `<span class="drop-chip focus-chip">${resourceName(key)}</span>`).join("");
     const dropLabels = stage.reward.rolls.map((roll, i) => {
       const { amount, table } = rewardRollTable(roll);
       const description = Object.entries(table).map(([key, chance]) => `${resourceIcon(key)} ${Math.round(chance * 100)}%`).join(" / ");
@@ -425,6 +453,7 @@
         <strong>${nextStep}</strong>
         <span>Victory: ${resourceIcon("research")} ${stage.reward.research} plus larger material cache rolls. Defeat: partial Research only.</span>
       </div>
+      <div class="farm-focus"><b>FARM TARGET</b>${focusLabels}</div>
       <div class="drop-row">${dropLabels}</div>
       <div class="stage-actions">
         <button class="primary" id="start-defense" ${unlocked ? "" : "disabled"}>${cleared ? "REPLAY DEFENSE" : "DEPLOY DEFENSE"}</button>
@@ -474,7 +503,12 @@
       { id: "critical", copy: "Raises critical hit chance and critical damage together" },
       { id: "special", copy: "Unlocks reserved special ability slots; module designs forthcoming" }
     ];
-    ui.systems.innerHTML = systems.map(system => {
+    const wallet = `<article class="resource-wallet">
+      <span>FORTRESS UPGRADE WALLET</span>
+      <b>${resourceLabel("research", state.resources.research)}</b>
+      <b>${resourceLabel("bio", state.resources.bio)}</b>
+    </article>`;
+    ui.systems.innerHTML = wallet + systems.map(system => {
       const level = state.fortress[system.id];
       const config = B.fortress[system.id];
       const cost = scaledCost(config.costs, level);
@@ -506,6 +540,9 @@
   }
 
   function researchCost(tower, stat, level) {
+    if (tower.category === "magic") {
+      return { research: 18 + level * 22 + tower.unlockStage * 4 };
+    }
     const resource = tower.category === "magic" ? "arcane" : stat === "timing" ? "plasma" : "nano";
     return { research: 16 + level * 17 + tower.unlockStage * 3, [resource]: 1 + Math.floor(level / 2) };
   }
@@ -520,8 +557,9 @@
       if (!unlocked) {
         actions = `<button class="primary" data-unlock="${id}" ${availableByStage && canPay(tower.unlockCost) ? "" : "disabled"}>${availableByStage ? `RESEARCH // ${unlockCopy}` : `CLEAR STAGE ${tower.unlockStage}`}</button>`;
       } else {
+        const stats = tower.category === "magic" ? ["timing"] : ["power", "range", "timing"];
         actions = `<div class="research-actions">
-          ${["power", "range", "timing"].map(stat => {
+          ${stats.map(stat => {
             const cost = researchCost(tower, stat, levels[stat]);
             const name = stat === "timing" ? (tower.category === "magic" ? "STAR SPEED" : "FIRE RATE") : stat.toUpperCase();
             return `<button class="secondary" data-calibrate="${id}:${stat}" ${canPay(cost) ? "" : "disabled"}>${name} +${levels[stat]}<br>${costHtml(cost)}</button>`;
@@ -531,7 +569,7 @@
       return `<article class="research-card ${unlocked ? "" : "locked"}">
         <span class="type-flag ${tower.category}">${tower.category.toUpperCase()}</span>
         <h3>${tower.name}<span>${unlocked ? "ONLINE" : "LOCKED"}</span></h3>
-        <p class="fine">${tower.role}. ${tower.category === "magic" ? "Unlimited automatic stars." : "Gold upgrades cap at 5 stars."}</p>
+        <p class="fine">${tower.role}. ${tower.category === "magic" ? "Outside research only improves automatic star speed and costs RP only." : "Gold upgrades cap at 5 stars; base mechanical ranges are equal."}</p>
         ${actions}
       </article>`;
     }).join("");
@@ -708,10 +746,10 @@
     ui.towerDeck.innerHTML = availableTowers().map(([id, tower]) => {
       const statLine = tower.category === "magic"
         ? `Global / ${tower.effectInterval ? `${tower.effectInterval}s cycle` : "passive"}`
-        : `DMG ${tower.damage} / RNG ${tower.range}`;
+        : `DPS ${towerDps(tower).toFixed(1)} / RNG ${tower.range}`;
       return `
-      <button class="tower-choice ${runtime.selectedTower === id ? "selected" : ""}" data-tower="${id}" style="--tower:${tower.color}">
-        <i></i><strong>${tower.short}</strong><small>${tower.price}G</small><em>${statLine}</em>
+      <button class="tower-choice ${runtime.selectedTower === id ? "selected" : ""}" data-tower="${id}" style="--tower:${tower.color};${towerSpriteStyle(id)}">
+        <i class="tower-portrait" aria-hidden="true"></i><strong>${tower.short}</strong><small>${tower.price}G</small><em>${statLine}</em>
       </button>`;
     }).join("");
     ui.towerDeck.querySelectorAll("[data-tower]").forEach(button => {
@@ -832,6 +870,14 @@
 
   function permanentMultipliers(id) {
     const levels = towerResearch(id);
+    if (B.towers[id]?.category === "magic") {
+      return {
+        damage: 1,
+        range: 1,
+        speed: 1,
+        starInterval: Math.max(.18, 1 - levels.timing * .075)
+      };
+    }
     return {
       damage: 1 + levels.power * .09,
       range: 1 + levels.range * .045,
@@ -949,6 +995,7 @@
         target.slowValue = config.slow;
       }
       tower.angle = Math.atan2(target.y - tower.y, target.x - tower.x);
+      tower.flip = target.x > tower.x ? -1 : 1;
       tower.recoil = tower.id === "cannon" ? 1 : tower.id === "tesla" ? .34 : .62;
       tower.heat = 1;
       const projectileLife = tower.id === "cannon" ? .38 : tower.id === "cryo" ? .32 : tower.id === "tesla" ? .11 : .16;
@@ -1322,6 +1369,24 @@
     return true;
   }
 
+  function drawMagicAtlasCell(row, col, x, y, width, height) {
+    if (!spriteAtlas.magicReady) return false;
+    const cellWidth = spriteAtlas.magicImage.width / spriteAtlas.magicCols;
+    const cellHeight = spriteAtlas.magicImage.height / spriteAtlas.magicRows;
+    ctx.drawImage(
+      spriteAtlas.magicImage,
+      col * cellWidth,
+      row * cellHeight,
+      cellWidth,
+      cellHeight,
+      x - width / 2,
+      y - height / 2,
+      width,
+      height
+    );
+    return true;
+  }
+
   function drawTower(tower) {
     const config = B.towers[tower.id];
     const selected = runtime.selectedPlaced === tower;
@@ -1350,7 +1415,8 @@
       glow(config.color, selected ? 19 : 8 + heat * 8);
       ctx.save();
       ctx.translate(-Math.cos(angle) * recoil * 4, -Math.sin(angle) * recoil * 4);
-      drawAtlasCell(0, spriteAtlas.towers[tower.id], 0, -6, 96 * size, 96 * size);
+      ctx.scale(tower.flip || 1, 1);
+      drawAtlasCell(heat > .18 ? 1 : 0, spriteAtlas.towers[tower.id], 0, -6, 96 * size, 96 * size);
       ctx.restore();
       if (heat) {
         glow(config.color, 18);
@@ -1364,6 +1430,28 @@
       ctx.font = "bold 10px Arial";
       ctx.textAlign = "center";
       ctx.fillText("★".repeat(tower.stars), 0, 32);
+      ctx.restore();
+      return;
+    }
+    if (config.category === "magic" && spriteAtlas.magicReady && spriteAtlas.magicTowers[tower.id] !== undefined) {
+      const active = (config.effectInterval && tower.cool < .28) || Math.floor(runtime.elapsed * 1.15 + tower.col) % 2 === 1;
+      glow(config.color, selected ? 22 : 9 + (active ? 10 : 0));
+      ctx.save();
+      const pulse = 1 + Math.sin(runtime.elapsed * 2.4 + tower.stars) * .025;
+      drawMagicAtlasCell(active ? 1 : 0, spriteAtlas.magicTowers[tower.id], 0, -7, 98 * pulse, 84 * pulse);
+      ctx.restore();
+      if (active || tower.id === "empowerment") {
+        ctx.strokeStyle = config.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -6, 25 + Math.sin(runtime.elapsed * 3) * 2, runtime.elapsed, runtime.elapsed + Math.PI * 1.35);
+        ctx.stroke();
+      }
+      resetGlow();
+      ctx.fillStyle = "#f1dfba";
+      ctx.font = "bold 10px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`★${tower.stars}`, 0, 32);
       ctx.restore();
       return;
     }
@@ -1505,9 +1593,10 @@
     if (spriteAtlas.ready && spriteAtlas.enemies[enemy.type] !== undefined) {
       const spriteScale = enemy.elite ? 1.34 : enemy.type === "giant" ? 1.2 : enemy.type === "runner" ? .92 : 1;
       const bob = Math.sin(runtime.elapsed * 5.2 * enemy.speed + enemy.progress) * 1.8;
+      const frame = Math.floor(runtime.elapsed * Math.max(2, enemy.speed * 4.5) + enemy.progress) % 2;
       ctx.save();
       ctx.translate(0, bob);
-      drawAtlasCell(1, spriteAtlas.enemies[enemy.type], 0, -2 * size, 66 * spriteScale, 92 * spriteScale);
+      drawAtlasCell(2 + frame, spriteAtlas.enemies[enemy.type], 0, -2 * size, 66 * spriteScale, 92 * spriteScale);
       ctx.restore();
       if (enemy.slowUntil > runtime.elapsed) {
         glow("rgba(178, 239, 255, .55)", 13);

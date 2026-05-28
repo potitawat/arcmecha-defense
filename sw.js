@@ -1,4 +1,4 @@
-const CACHE = "arcmecha-defense-v4";
+const CACHE = "arcmecha-defense-v5";
 const FILES = [
   "./",
   "./index.html",
@@ -9,7 +9,9 @@ const FILES = [
   "./manifest.webmanifest",
   "./assets/fortress-hero-v3.jpg",
   "./assets/zombie-king-v3.jpg",
-  "./assets/sprites/arcmecha-sprite-atlas-v1.png",
+  "./assets/audio/industrial-arcane-loop-v1.wav",
+  "./assets/sprites/arcmecha-animated-atlas-v2.png",
+  "./assets/sprites/magic-animated-atlas-v2.png",
   "./assets/icons/field-gold.svg",
   "./assets/icons/nano-scrap.svg",
   "./assets/icons/arcane-crystal.svg",
