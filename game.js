@@ -99,7 +99,7 @@
       this.beat = 0;
       this.master = null;
       this.noise = null;
-      this.music = new Audio("./assets/audio/industrial-arcane-loop-v1.wav");
+      this.music = new Audio("./assets/audio/industrial-arcane-loop-v2.wav");
       this.music.loop = true;
       this.music.preload = "auto";
       this.music.volume = 0.46;
@@ -325,10 +325,6 @@
     };
   }
 
-  function towerDps(tower) {
-    return tower.damage && tower.cooldown ? tower.damage / tower.cooldown : 0;
-  }
-
   function towerSpriteStyle(id) {
     if (spriteAtlas.towers[id] !== undefined) {
       const x = spriteAtlas.towers[id] * 25;
@@ -339,6 +335,31 @@
       return `--tower-image:url('./assets/sprites/magic-animated-atlas-v2.png');--tower-bg-size:400% 200%;--tower-bg-x:${x}%;--tower-bg-y:0%;`;
     }
     return "";
+  }
+
+  function towerStats(id, tower = B.towers[id], stars = 1) {
+    const permanent = state?.permanent?.[id] ? permanentMultipliers(id) : { damage: 1, range: 1, speed: 1, starInterval: 1 };
+    if (tower.category === "mechanical") {
+      const starPower = 1 + (stars - 1) * .27;
+      const damage = tower.damage * starPower * permanent.damage;
+      const rate = tower.cooldown / ((1 + (stars - 1) * .12) * permanent.speed);
+      const range = tower.range * permanent.range;
+      return `DMG ${damage.toFixed(1)} / DPS ${(damage / rate).toFixed(1)} / RATE ${rate.toFixed(2)}s / RNG ${range.toFixed(2)}`;
+    }
+    const parts = [];
+    if (tower.goldPerCycle) parts.push(`GOLD +${Math.round(tower.goldPerCycle * stars * permanent.damage)}`);
+    if (tower.damage) parts.push(`DMG ${(tower.damage * stars * permanent.damage).toFixed(1)}`);
+    if (tower.damageBoost) parts.push(`DMG +${Math.round(tower.damageBoost * stars * permanent.damage * 100)}%`);
+    if (tower.speedBoost) parts.push(`SPD +${Math.round(tower.speedBoost * stars * permanent.speed * 100)}%`);
+    if (tower.rangeBoost) parts.push(`RNG +${Math.round(tower.rangeBoost * stars * permanent.range * 100)}%`);
+    if (tower.slow) parts.push(`SLOW ${Math.round(Math.min(.72, tower.slow + stars * .018) * 100)}%`);
+    if (tower.effectInterval) {
+      const interval = id === "goldRitual"
+        ? Math.max(1, tower.effectInterval - (stars - 1))
+        : Math.max(2, tower.effectInterval - (stars - 1) * .1);
+      parts.push(`${interval.toFixed(interval % 1 ? 1 : 0)}s CYCLE`);
+    }
+    return parts.join(" / ") || "GLOBAL PASSIVE";
   }
 
   function canPay(cost) {
@@ -743,14 +764,18 @@
 
   function renderTowerDeck() {
     if (!runtime) return;
-    ui.towerDeck.innerHTML = availableTowers().map(([id, tower]) => {
-      const statLine = tower.category === "magic"
-        ? `Global / ${tower.effectInterval ? `${tower.effectInterval}s cycle` : "passive"}`
-        : `DPS ${towerDps(tower).toFixed(1)} / RNG ${tower.range}`;
-      return `
+    const grouped = [
+      { category: "mechanical", title: "MECHANICAL DAMAGE TOWERS" },
+      { category: "magic", title: "GLOBAL MAGIC TOWERS" }
+    ];
+    const towerButton = ([id, tower]) => `
       <button class="tower-choice ${runtime.selectedTower === id ? "selected" : ""}" data-tower="${id}" style="--tower:${tower.color};${towerSpriteStyle(id)}">
-        <i class="tower-portrait" aria-hidden="true"></i><strong>${tower.short}</strong><small>${tower.price}G</small><em>${statLine}</em>
+        <i class="tower-portrait" aria-hidden="true"></i><strong>${tower.short}</strong><small>${tower.price}G</small><em>${towerStats(id, tower)}</em>
       </button>`;
+    ui.towerDeck.innerHTML = grouped.map(group => {
+      const towers = availableTowers().filter(([, tower]) => tower.category === group.category);
+      if (!towers.length) return "";
+      return `<section class="tower-group ${group.category}"><h4>${group.title}</h4><div class="tower-group-list">${towers.map(towerButton).join("")}</div></section>`;
     }).join("");
     ui.towerDeck.querySelectorAll("[data-tower]").forEach(button => {
       button.onclick = () => {
@@ -770,14 +795,14 @@
       const config = B.towers[tower.id];
       const upgradable = config.category === "mechanical" && tower.stars < config.maxStars;
       const price = Math.ceil(config.upgradeCost * Math.pow(1.4, tower.stars - 1));
-      ui.selectedInfo.innerHTML = `<strong>${config.name}</strong><span>${tower.stars} star${tower.stars > 1 ? "s" : ""} // ${config.role}</span>`;
+      ui.selectedInfo.innerHTML = `<strong>${config.name}</strong><span>${tower.stars} star${tower.stars > 1 ? "s" : ""} // ${towerStats(tower.id, config, tower.stars)}<br>${config.role}</span>`;
       ui.towerUpgrade.textContent = upgradable ? `UPGRADE ${price} G` : config.category === "magic" ? "AUTO ASCENSION" : "MAX STARS";
       ui.towerUpgrade.disabled = !upgradable || runtime.gold < price;
       ui.towerUpgrade.classList.remove("hidden");
       return;
     }
     const tower = B.towers[runtime.selectedTower];
-    ui.selectedInfo.innerHTML = `<strong>${tower.name}</strong><span>${tower.category === "magic" ? "Global effect. Auto-stars over time." : "Tap a free dark plate to build. Tap a tower to upgrade."}</span>`;
+    ui.selectedInfo.innerHTML = `<strong>${tower.name}</strong><span>${towerStats(runtime.selectedTower, tower)}<br>${tower.category === "magic" ? "Global effect. Auto-stars over time." : "Tap a square build block to deploy. Tap a tower to upgrade."}</span>`;
     ui.towerUpgrade.classList.add("hidden");
   }
 
@@ -1234,49 +1259,71 @@
     ctx.shadowColor = "transparent";
   }
 
+  function roundedRect(x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   function drawTile(col, row, road) {
     const x = col * CW;
     const y = row * CH;
-    const cx = x + CW / 2;
-    const cy = y + CH / 2;
     const seed = (col * 17 + row * 31) % 7;
-    diamond(cx, cy, CW - 6, CH - 12);
+    const inset = road ? 2.5 : 4;
+    roundedRect(x + inset, y + inset, CW - inset * 2, CH - inset * 2, road ? 6 : 8);
     const fill = ctx.createLinearGradient(x, y, x + CW, y + CH);
     if (road) {
-      fill.addColorStop(0, "#3b2b21");
-      fill.addColorStop(.48, "#201713");
-      fill.addColorStop(1, "#4b321f");
+      fill.addColorStop(0, "#4b3325");
+      fill.addColorStop(.5, "#231916");
+      fill.addColorStop(1, "#5b3a24");
     } else {
-      fill.addColorStop(0, seed % 2 ? "#1e1d19" : "#171815");
-      fill.addColorStop(.6, "#11120f");
-      fill.addColorStop(1, seed % 3 ? "#24211a" : "#171410");
+      fill.addColorStop(0, seed % 2 ? "#252724" : "#20231f");
+      fill.addColorStop(.55, "#12140f");
+      fill.addColorStop(1, seed % 3 ? "#30281f" : "#18140f");
     }
     ctx.fillStyle = fill;
     ctx.fill();
-    ctx.strokeStyle = road ? "rgba(228, 151, 73, .46)" : "rgba(176, 130, 74, .14)";
-    ctx.lineWidth = road ? 1.4 : .8;
+    ctx.strokeStyle = road ? "rgba(238, 150, 70, .6)" : "rgba(206, 154, 85, .28)";
+    ctx.lineWidth = road ? 1.5 : 1.1;
     ctx.stroke();
     if (road) {
-      glow("rgba(235, 122, 55, .35)", 10);
-      ctx.strokeStyle = "rgba(240, 157, 79, .36)";
-      ctx.lineWidth = 2.2;
+      glow("rgba(236, 101, 45, .34)", 10);
+      ctx.strokeStyle = "rgba(255, 171, 86, .44)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(x + 12, cy + 2);
-      ctx.lineTo(x + CW - 12, cy - 2);
+      ctx.moveTo(x + 10, y + CH * .28);
+      ctx.lineTo(x + CW - 10, y + CH * .28);
+      ctx.moveTo(x + 10, y + CH * .72);
+      ctx.lineTo(x + CW - 10, y + CH * .72);
       ctx.stroke();
       resetGlow();
+      ctx.fillStyle = "rgba(255, 113, 45, .4)";
+      ctx.fillRect(x + CW * .45, y + CH * .45, CW * .1, CH * .1);
     } else {
-      ctx.fillStyle = `rgba(202, 151, 87, ${0.04 + seed * 0.008})`;
-      ctx.fillRect(x + 13 + seed, y + 15, 11, 2);
-      ctx.fillRect(x + 31, y + 34 + seed, 15, 1.5);
+      ctx.strokeStyle = `rgba(227, 173, 95, ${0.08 + seed * 0.012})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 8, y + 8, CW - 16, CH - 16);
+      ctx.fillStyle = `rgba(238, 182, 98, ${0.08 + seed * 0.01})`;
+      [[10, 10], [CW - 14, 10], [10, CH - 14], [CW - 14, CH - 14]].forEach(([px, py]) => {
+        ctx.fillRect(x + px, y + py, 4, 4);
+      });
     }
   }
 
   function drawRoutePreview() {
     ctx.save();
     runtime.paths.forEach(path => {
-      ctx.strokeStyle = "rgba(235, 151, 72, .16)";
-      ctx.lineWidth = 15;
+      ctx.strokeStyle = "rgba(18, 12, 10, .78)";
+      ctx.lineWidth = 24;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -1287,17 +1334,39 @@
         else ctx.moveTo(x, y);
       });
       ctx.stroke();
-      glow("rgba(236, 102, 49, .38)", 18);
-      ctx.strokeStyle = "rgba(234, 132, 61, .35)";
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(190, 122, 62, .42)";
+      ctx.lineWidth = 17;
       ctx.stroke();
+      glow("rgba(236, 102, 49, .5)", 18);
+      ctx.strokeStyle = "rgba(255, 151, 71, .72)";
+      ctx.lineWidth = 3.4;
+      ctx.stroke();
+      ctx.setLineDash([7, 12]);
+      ctx.strokeStyle = "rgba(255, 214, 144, .34)";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.setLineDash([]);
       resetGlow();
+      path.forEach(([col, row], index) => {
+        if (index === 0 || row < 0 || row >= B.grid.rows || col < 0 || col >= B.grid.cols) return;
+        const x = (col + .5) * CW;
+        const y = (row + .5) * CH;
+        ctx.fillStyle = "rgba(17, 12, 10, .86)";
+        ctx.strokeStyle = "rgba(235, 174, 94, .45)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "rgba(246, 160, 72, .7)";
+        ctx.fillRect(x - 2, y - 2, 4, 4);
+      });
     });
     ctx.restore();
   }
 
   function drawFortress() {
-    const x = 4 * CW + CW / 2;
+    const x = canvas.width / 2;
     const y = canvas.height - 18;
     ctx.save();
     ctx.translate(x, y);
@@ -1414,9 +1483,12 @@
       const size = tower.id === "cannon" ? 1.1 : tower.id === "tesla" || tower.id === "cryo" ? 1.05 : 1;
       glow(config.color, selected ? 19 : 8 + heat * 8);
       ctx.save();
+      const idleBob = Math.sin(runtime.elapsed * 4 + tower.col * .7 + tower.row) * 1.2;
       ctx.translate(-Math.cos(angle) * recoil * 4, -Math.sin(angle) * recoil * 4);
+      ctx.translate(0, idleBob - heat * 1.5);
+      ctx.rotate(Math.sin(runtime.elapsed * 3.2 + tower.col) * .015);
       ctx.scale(tower.flip || 1, 1);
-      drawAtlasCell(heat > .18 ? 1 : 0, spriteAtlas.towers[tower.id], 0, -6, 96 * size, 96 * size);
+      drawAtlasCell(heat > .18 ? 1 : 0, spriteAtlas.towers[tower.id], 0, -6, 96 * size * (1 + heat * .035), 96 * size * (1 + heat * .035));
       ctx.restore();
       if (heat) {
         glow(config.color, 18);
@@ -1437,7 +1509,9 @@
       const active = (config.effectInterval && tower.cool < .28) || Math.floor(runtime.elapsed * 1.15 + tower.col) % 2 === 1;
       glow(config.color, selected ? 22 : 9 + (active ? 10 : 0));
       ctx.save();
-      const pulse = 1 + Math.sin(runtime.elapsed * 2.4 + tower.stars) * .025;
+      const pulse = 1 + Math.sin(runtime.elapsed * 3.4 + tower.stars) * .035 + (active ? .035 : 0);
+      ctx.translate(0, Math.sin(runtime.elapsed * 2.6 + tower.col) * 1.4);
+      ctx.rotate(Math.sin(runtime.elapsed * 1.8 + tower.row) * .018);
       drawMagicAtlasCell(active ? 1 : 0, spriteAtlas.magicTowers[tower.id], 0, -7, 98 * pulse, 84 * pulse);
       ctx.restore();
       if (active || tower.id === "empowerment") {
@@ -1596,6 +1670,8 @@
       const frame = Math.floor(runtime.elapsed * Math.max(2, enemy.speed * 4.5) + enemy.progress) % 2;
       ctx.save();
       ctx.translate(0, bob);
+      ctx.rotate(Math.sin(runtime.elapsed * 3.5 * enemy.speed + enemy.progress) * .035);
+      ctx.scale(1 + frame * .025, 1 - frame * .018);
       drawAtlasCell(2 + frame, spriteAtlas.enemies[enemy.type], 0, -2 * size, 66 * spriteScale, 92 * spriteScale);
       ctx.restore();
       if (enemy.slowUntil > runtime.elapsed) {
@@ -1815,14 +1891,29 @@
     drawRoutePreview();
     runtime.paths.forEach(path => {
       const start = path[0];
-      glow("#e28845", 14);
-      ctx.fillStyle = "#c18046";
+      const next = path[1] || start;
+      const sx = Math.max(18, Math.min(canvas.width - 18, (start[0] + .5) * CW));
+      const sy = Math.max(18, Math.min(canvas.height - 18, (start[1] + .5) * CH));
+      const angle = Math.atan2(next[1] - start[1], next[0] - start[0]);
+      glow("#e28845", 16);
+      ctx.fillStyle = "rgba(16, 10, 8, .88)";
       ctx.beginPath();
-      ctx.moveTo((start[0] + .5) * CW - 12, 12);
-      ctx.lineTo((start[0] + .5) * CW + 12, 12);
-      ctx.lineTo((start[0] + .5) * CW, 29);
+      ctx.arc(sx, sy, 15 + Math.sin(runtime.elapsed * 3) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(236, 154, 74, .76)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(angle);
+      ctx.fillStyle = "#e79c55";
+      ctx.beginPath();
+      ctx.moveTo(14, 0);
+      ctx.lineTo(-5, -7);
+      ctx.lineTo(-5, 7);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
       resetGlow();
     });
     drawFortress();

@@ -1716,3 +1716,304 @@ body {
     transform: translateX(-50%);
   }
 }
+
+/* Landscape phone combat pass */
+.battle-wallet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  margin-bottom: 7px;
+  border: 1px solid rgba(235, 174, 96, .22);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(233, 176, 96, .18), transparent 70%),
+    linear-gradient(180deg, rgba(39, 28, 20, .96), rgba(12, 9, 7, .98));
+  box-shadow: inset 0 1px rgba(255, 236, 190, .06), 0 8px 14px rgba(0, 0, 0, .24);
+}
+
+.battle-wallet span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d7c3a8;
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.battle-wallet b {
+  color: var(--brass-hi);
+  font-size: .86rem;
+}
+
+.tower-deck {
+  gap: 10px;
+}
+
+.tower-group {
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding: 7px;
+  border: 1px solid rgba(223, 166, 96, .12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(16, 13, 11, .58), rgba(5, 5, 5, .22));
+}
+
+.tower-group h4 {
+  margin: 0 0 6px;
+  padding: 0 2px;
+  color: #d3a86b;
+  font-size: .55rem;
+  letter-spacing: .18em;
+  font-weight: 900;
+}
+
+.tower-group.magic {
+  border-color: rgba(176, 128, 238, .2);
+}
+
+.tower-group.magic h4 {
+  color: #bc95f0;
+}
+
+.tower-group-list {
+  display: flex;
+  gap: 8px;
+}
+
+.tower-choice em {
+  color: #cabaa4;
+  font-size: .48rem;
+}
+
+.tower-choice .tower-portrait {
+  width: 68px;
+  height: 46px;
+}
+
+#defense-canvas {
+  aspect-ratio: 3 / 2;
+}
+
+.bottom-nav {
+  gap: 7px;
+  padding: 9px max(7px, calc((100vw - 540px) / 2)) var(--safe-bottom);
+  border-top: 1px solid rgba(235, 174, 96, .22);
+  background:
+    radial-gradient(circle at 50% 0, rgba(185, 111, 51, .24), transparent 70%),
+    linear-gradient(180deg, rgba(35, 25, 18, .98), rgba(4, 4, 4, .99));
+}
+
+.bottom-nav button {
+  position: relative;
+  height: 58px;
+  max-width: 88px;
+  border: 1px solid rgba(230, 170, 96, .12);
+  border-radius: 15px;
+  background:
+    linear-gradient(180deg, rgba(37, 27, 19, .86), rgba(9, 7, 6, .92));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .04), 0 8px 16px rgba(0, 0, 0, .28);
+}
+
+.bottom-nav button::before {
+  content: "";
+  position: absolute;
+  inset: 6px 12px auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(232, 181, 106, .5), transparent);
+}
+
+.bottom-nav button span {
+  margin-bottom: 3px;
+  font-size: 1rem;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.bottom-nav button.selected {
+  border-color: rgba(239, 188, 112, .55);
+  color: #f4c47f;
+  background:
+    radial-gradient(circle at 50% 0, rgba(232, 163, 80, .24), transparent 70%),
+    linear-gradient(180deg, rgba(58, 39, 24, .95), rgba(16, 10, 7, .98));
+}
+
+.bottom-nav button.selected::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 5px;
+  height: 3px;
+  border-radius: 999px;
+  background: #f1b966;
+  box-shadow: 0 0 12px rgba(241, 185, 102, .9);
+}
+
+@media (orientation: landscape) {
+  #app {
+    padding-bottom: 70px;
+  }
+
+  .battle-screen {
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(250px, 38vw);
+    grid-template-rows: 40px 1fr;
+    gap: 8px;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(6px, env(safe-area-inset-bottom));
+  }
+
+  .battle-header {
+    grid-column: 1 / 3;
+    grid-row: 1;
+    min-height: 0;
+    height: 40px;
+  }
+
+  .battle-header > div:nth-child(2) strong {
+    max-width: none;
+  }
+
+  .battle-health strong {
+    font-size: .78rem;
+  }
+
+  .battle-stats {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    align-self: center;
+    width: min(300px, 38vw);
+    min-height: 0;
+    height: 36px;
+    margin: 0;
+    padding: 4px;
+  }
+
+  .battle-stats span {
+    padding: 3px 5px;
+    font-size: .54rem;
+  }
+
+  .battle-map {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+    margin: 0;
+  }
+
+  #defense-canvas {
+    width: auto;
+    height: min(100%, calc(100dvh - 58px));
+    max-height: none;
+  }
+
+  .battle-command {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+    height: 100%;
+    padding: 7px;
+    overflow: hidden;
+  }
+
+  .wave-controls {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "wave"
+      "upgrade"
+      "info";
+    gap: 6px;
+    margin-bottom: 7px;
+  }
+
+  .wave-controls button {
+    min-height: 34px;
+  }
+
+  #selected-info {
+    min-height: 76px;
+    max-height: 98px;
+    overflow: hidden;
+  }
+
+  .tower-deck {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 2px 4px 0;
+  }
+
+  .tower-group {
+    min-width: 0;
+  }
+
+  .tower-group-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .tower-choice {
+    width: 100%;
+    height: 96px;
+    padding: 7px 5px;
+  }
+
+  .tower-choice .tower-portrait {
+    width: 64px;
+    height: 42px;
+  }
+}
+
+@media (max-height: 430px) and (orientation: landscape) {
+  .battle-screen {
+    grid-template-columns: minmax(270px, 1fr) minmax(240px, 40vw);
+    grid-template-rows: 34px 1fr;
+    gap: 6px;
+  }
+
+  .battle-header {
+    height: 34px;
+  }
+
+  .battle-stats {
+    height: 31px;
+  }
+
+  .battle-wallet {
+    min-height: 30px;
+    margin-bottom: 5px;
+  }
+
+  .wave-controls {
+    gap: 5px;
+  }
+
+  .wave-controls button {
+    min-height: 31px;
+  }
+
+  #selected-info {
+    min-height: 58px;
+    max-height: 78px;
+  }
+
+  .tower-choice {
+    height: 86px;
+  }
+
+  .tower-choice .tower-portrait {
+    width: 58px;
+    height: 36px;
+  }
+
+  .tower-choice em {
+    font-size: .43rem;
+    line-height: 1.05;
+  }
+}

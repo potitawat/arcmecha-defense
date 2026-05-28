@@ -120,15 +120,17 @@
         <div class="battle-health"><span>FORTRESS</span><strong id="battle-hp"></strong></div>
       </header>
       <div class="battle-stats">
-        <span><img class="mini-icon" src="./assets/icons/field-gold.svg" alt=""> GOLD <b id="battle-gold">0</b></span>
         <span>WAVE <b id="battle-wave">0 / 0</b></span>
         <span id="battle-timer">DEPLOYMENT</span>
       </div>
       <div class="battle-map">
-        <canvas id="defense-canvas" width="600" height="720" aria-label="Defense battlefield grid"></canvas>
+        <canvas id="defense-canvas" width="720" height="480" aria-label="Defense battlefield grid"></canvas>
         <div id="battle-toast" class="battle-toast"></div>
       </div>
       <div class="battle-command">
+        <div class="battle-wallet">
+          <span><img class="mini-icon" src="./assets/icons/field-gold.svg" alt=""> FIELD GOLD <b id="battle-gold">0</b></span>
+        </div>
         <div class="wave-controls">
           <button id="send-wave" class="primary">START WAVE</button>
           <div id="selected-info">Select a tower, then tap a free grid cell.</div>
